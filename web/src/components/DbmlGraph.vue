@@ -60,6 +60,7 @@
   import VDbChart from './VDbChart/VDbChart'
   import { useChartStore } from '../store/chart'
   import VDbStructure from './VDbStructure'
+  import { sendDiagramUpdate, onDiagramUpdate, joinProject } from 'src/boot/socket'
 
   const props = defineProps({
     schema: {
@@ -102,7 +103,99 @@
     // do nothing
   }
 
+  // Escuchar actualizaciones de posición de tablas y grupos
+  onMounted(() => {
+    // Unirse al mismo proyecto que el editor
+    const projectId = 'default-project';
+    joinProject(projectId);
+    console.log("DbmlGraph: Unido al proyecto", projectId);
+    
+    // Escuchar actualizaciones del diagrama
+    onDiagramUpdate((data) => {
+      console.log("DbmlGraph: Recibida actualización", data);
+      
+      try {
+        if (data.updateType === 'table-position-update' && data.payload && data.payload.tableId && data.payload.position) {
+          // Actualizar la posición de una tabla
+          const { tableId, position } = data.payload;
+          
+          // Verificar que tenemos posiciones válidas
+          if (typeof position.x !== 'number' || typeof position.y !== 'number') {
+            console.error("Posición inválida recibida:", position);
+            return;
+          }
+          
+          // Actualizar en el store de chart
+          try {
+            const tableStore = chart.getTable(tableId);
+            if (tableStore) {
+              console.log("Actualizando posición de tabla en store:", tableId, position);
+              tableStore.x = position.x;
+              tableStore.y = position.y;
+            }
+          } catch (error) {
+            console.error("Error al actualizar tabla en store:", error);
+          }
+          
+          // También actualizar en el schema si está disponible
+          try {
+            if (props.schema && props.schema.tables && Array.isArray(props.schema.tables)) {
+              const table = props.schema.tables.find(t => t && t.id === tableId);
+              if (table) {
+                console.log("Actualizando posición de tabla en schema:", tableId, position);
+                if (!table.position) table.position = {};
+                table.position.x = position.x;
+                table.position.y = position.y;
+              }
+            }
+          } catch (error) {
+            console.error("Error al actualizar tabla en schema:", error);
+          }
+        } else if (data.updateType === 'tablegroup-position-update' && data.payload && data.payload.groupId && data.payload.position) {
+          // Actualizar la posición de un grupo de tablas
+          const { groupId, position } = data.payload;
+          
+          // Verificar que tenemos posiciones válidas
+          if (typeof position.x !== 'number' || typeof position.y !== 'number') {
+            console.error("Posición inválida recibida:", position);
+            return;
+          }
+          
+          // Actualizar en el store de chart
+          try {
+            const groupStore = chart.getTableGroup(groupId);
+            if (groupStore) {
+              console.log("Actualizando posición de grupo en store:", groupId, position);
+              groupStore.x = position.x;
+              groupStore.y = position.y;
+            }
+          } catch (error) {
+            console.error("Error al actualizar grupo en store:", error);
+          }
+          
+          // También actualizar en el schema si está disponible
+          try {
+            if (props.schema && props.schema.tableGroups && Array.isArray(props.schema.tableGroups)) {
+              const group = props.schema.tableGroups.find(g => g && g.id === groupId);
+              if (group) {
+                console.log("Actualizando posición de grupo en schema:", groupId, position);
+                if (!group.position) group.position = {};
+                group.position.x = position.x;
+                group.position.y = position.y;
+              }
+            }
+          } catch (error) {
+            console.error("Error al actualizar grupo en schema:", error);
+          }
+        }
+      } catch (error) {
+        console.error("Error al procesar actualización del diagrama:", error);
+      }
+    });
+  });
 
+  // Las actualizaciones ya están siendo enviadas por los componentes VDbTable y VDbTableGroup
+  // No necesitamos un watcher adicional aquí
 </script>
 
 <style scoped lang="scss">

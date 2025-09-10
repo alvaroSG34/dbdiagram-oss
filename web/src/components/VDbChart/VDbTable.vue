@@ -54,6 +54,7 @@
   import { useChartStore } from '../../store/chart'
   import { snap } from '../../utils/MathUtil'
   import { useEditorStore } from '../../store/editor'
+  import { sendDiagramUpdate } from '../../boot/socket'
 
   const props = defineProps({
     id: Number,
@@ -152,6 +153,20 @@
   const drop = (e) => {
     dragging.value = false
     highlight.value = false
+
+    // Enviar la posición final de la tabla a todos los clientes
+    console.log(`Tabla ${props.id} movida a:`, {x: state.value.x, y: state.value.y});
+    
+    // Esperar un poco para asegurar que la posición final se haya aplicado correctamente
+    setTimeout(() => {
+      sendDiagramUpdate('table-position-update', {
+        tableId: props.id,
+        position: {
+          x: state.value.x,
+          y: state.value.y
+        }
+      });
+    }, 50);
 
     dragOffsetX.value = null
     dragOffsetY.value = null

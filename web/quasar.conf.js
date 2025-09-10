@@ -17,7 +17,8 @@ module.exports = configure(function (ctx) {
       "i18n",
       "ace",
       "pinia",
-      "v3num"
+      "v3num",
+      "socket" // Archivo de boot para inicializar WebSockets
     ],
     css: [
       "app.scss"
@@ -36,7 +37,7 @@ module.exports = configure(function (ctx) {
     ],
     build: {
       env: require("dotenv").config().parsed,
-      publicPath: ctx.prod ? '/dbdiagram-oss/' : '/',
+      publicPath: '/',
       vueRouterMode: "history",
       chainWebpack(/* chain */) {
       }

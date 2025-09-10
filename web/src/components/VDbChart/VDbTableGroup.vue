@@ -44,6 +44,7 @@
   import { useChartStore } from '../../store/chart'
   import { computed, ref, watch, onMounted } from 'vue'
   import { snap } from '../../utils/MathUtil'
+  import { sendDiagramUpdate } from '../../boot/socket'
 
   const props = defineProps({
     name: String,
@@ -127,6 +128,32 @@ console.log(tableStates);
   const drop = (e) => {
     dragging.value = false
     highlight.value = false
+
+    console.log(`TableGroup ${props.id} movido a:`, {x: state.value.x, y: state.value.y});
+    console.log("Tablas afectadas:", affectedTables.value);
+    
+    // Esperar un poco para asegurar que las posiciones finales se hayan aplicado correctamente
+    setTimeout(() => {
+      // Enviar la posición final del grupo de tablas
+      sendDiagramUpdate('tablegroup-position-update', {
+        groupId: props.id,
+        position: {
+          x: state.value.x,
+          y: state.value.y
+        }
+      });
+
+      // También enviar las posiciones actualizadas de cada tabla del grupo
+      for(const table of affectedTables.value) {
+        sendDiagramUpdate('table-position-update', {
+          tableId: table.id,
+          position: {
+            x: table.x,
+            y: table.y
+          }
+        });
+      }
+    }, 50);
 
     dragOffset.x = null
     dragOffset.y = null

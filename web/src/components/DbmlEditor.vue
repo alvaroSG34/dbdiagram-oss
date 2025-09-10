@@ -13,10 +13,11 @@
 
 <script>
   import { VAceEditor } from 'vue3-ace-editor'
-  import { computed, reactive, ref, watch } from 'vue'
+  import { computed, reactive, ref, watch, onMounted, onUnmounted } from 'vue'
   import { useEditorStore } from 'src/store/editor'
   import { Range } from 'ace-builds'
   import { InlineAnnotation } from './ace/inline_annotation';
+  import { joinProject, sendDiagramUpdate, onDiagramUpdate } from 'src/boot/socket';
 
   export default {
     name: 'DbmlEditor',
@@ -33,10 +34,20 @@
         errorMarkerId: null
       })
       const annotations = reactive([]);
+      
+      // Control de la sincronización para evitar bucles infinitos
+      let isRemoteUpdate = false;
 
       const sourceCode = computed({
         get: () => props.source,
-        set: (val) => emit('update:source', val)
+        set: (val) => {
+          emit('update:source', val);
+          
+          // Si el cambio es local (no provocado por una actualización remota), enviarlo al servidor
+          if (!isRemoteUpdate) {
+            sendDiagramUpdate('dbml-code-update', { code: val });
+          }
+        }
       })
 
       const theme = computed({
@@ -120,6 +131,25 @@
           }
         }
       })
+
+      // Unirse a un proyecto al montar el componente
+      onMounted(() => {
+        // Usamos un ID de proyecto fijo para pruebas, en producción debería venir de la ruta o estado
+        const projectId = 'default-project';
+        joinProject(projectId);
+        console.log("DbmlEditor: Unido al proyecto", projectId);
+        
+        // Escuchar actualizaciones de código DBML
+        onDiagramUpdate((data) => {
+          console.log("DbmlEditor: Recibida actualización", data);
+          if (data.updateType === 'dbml-code-update' && data.payload && data.payload.code) {
+            // Marcar como actualización remota para evitar bucles
+            isRemoteUpdate = true;
+            emit('update:source', data.payload.code);
+            isRemoteUpdate = false;
+          }
+        });
+      });
 
       return {
         currentMarkerRef,
