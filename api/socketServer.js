@@ -24,6 +24,9 @@ io.on('connection', (socket) => {
     socket.join(projectId);
     console.log(`Cliente ${socket.id} se unió al proyecto ${projectId}`);
     
+    // Guardar el proyecto al que se unió este cliente para usarlo en desconexión
+    socket.currentProjectId = projectId;
+    
     // Inicializar el proyecto si es necesario
     if (!projects.has(projectId)) {
       projects.set(projectId, {
@@ -36,8 +39,22 @@ io.on('connection', (socket) => {
     const project = projects.get(projectId);
     project.users.add(socket.id);
     
+    // Enviar la lista de usuarios conectados al nuevo usuario
+    const connectedUsers = Array.from(project.users)
+      .filter(userId => userId !== socket.id) // Excluir al usuario actual
+      .map(userId => ({ userId }));
+    
+    // Notificar al nuevo usuario sobre todos los usuarios ya conectados
+    socket.emit('connected-users', {
+      users: connectedUsers,
+      projectId
+    });
+    
     // Notificar a otros usuarios del proyecto sobre el nuevo participante
-    socket.to(projectId).emit('user-joined', { userId: socket.id });
+    socket.to(projectId).emit('user-joined', { userId: socket.id, projectId });
+    
+    // Imprimir estadísticas
+    console.log(`Proyecto ${projectId}: ${project.users.size} usuarios conectados`);
   });
 
   // Recibir cambios en el diagrama (DBML o visual)
@@ -61,18 +78,39 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log(`Cliente desconectado: ${socket.id}`);
     
-    // Remover al usuario de todos los proyectos
-    for (const [projectId, project] of projects.entries()) {
-      if (project.users.has(socket.id)) {
-        project.users.delete(socket.id);
-        
-        // Notificar a otros usuarios del proyecto
-        socket.to(projectId).emit('user-left', { userId: socket.id });
-        
-        // Limpiar proyectos vacíos
-        if (project.users.size === 0) {
-          projects.delete(projectId);
-          console.log(`Proyecto ${projectId} cerrado - sin usuarios activos`);
+    // Si conocemos el proyecto al que estaba unido este cliente, manejarlo directamente
+    if (socket.currentProjectId && projects.has(socket.currentProjectId)) {
+      const project = projects.get(socket.currentProjectId);
+      project.users.delete(socket.id);
+      
+      // Notificar a otros usuarios del proyecto
+      socket.to(socket.currentProjectId).emit('user-left', { 
+        userId: socket.id,
+        projectId: socket.currentProjectId
+      });
+      
+      console.log(`Usuario ${socket.id} eliminado del proyecto ${socket.currentProjectId}`);
+      console.log(`Proyecto ${socket.currentProjectId}: ${project.users.size} usuarios conectados`);
+      
+      // Limpiar proyectos vacíos
+      if (project.users.size === 0) {
+        projects.delete(socket.currentProjectId);
+        console.log(`Proyecto ${socket.currentProjectId} cerrado - sin usuarios activos`);
+      }
+    } else {
+      // Remover al usuario de todos los proyectos si no sabemos cuál era su proyecto
+      for (const [projectId, project] of projects.entries()) {
+        if (project.users.has(socket.id)) {
+          project.users.delete(socket.id);
+          
+          // Notificar a otros usuarios del proyecto
+          socket.to(projectId).emit('user-left', { userId: socket.id });
+          
+          // Limpiar proyectos vacíos
+          if (project.users.size === 0) {
+            projects.delete(projectId);
+            console.log(`Proyecto ${projectId} cerrado - sin usuarios activos`);
+          }
         }
       }
     }

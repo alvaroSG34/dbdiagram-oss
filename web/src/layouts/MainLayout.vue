@@ -8,6 +8,7 @@
           </q-avatar>
         </q-toolbar-title>
         <router-view name="toolbar"/>
+        <connected-users />
       </q-toolbar>
     </q-header>
     <q-page-container>
@@ -19,11 +20,14 @@
 <script>
 
   import { defineComponent, ref } from 'vue'
+  import ConnectedUsers from 'src/components/ConnectedUsers.vue'
 
   export default defineComponent({
     name: 'MainLayout',
 
-    components: {},
+    components: {
+      ConnectedUsers
+    },
 
     setup () {
       const leftDrawerOpen = ref(false)

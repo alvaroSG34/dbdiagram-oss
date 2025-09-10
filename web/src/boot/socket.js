@@ -4,6 +4,9 @@ import { boot } from 'quasar/wrappers';
 const socket = io('http://localhost:3001');
 let currentProjectId = null;
 
+// Exportar la instancia del socket para que se pueda usar directamente
+export { socket };
+
 // Estado de conexión
 let isConnected = false;
 socket.on('connect', () => {
@@ -79,6 +82,13 @@ function onUserLeft(callback) {
   });
 }
 
+// Escuchar la lista de usuarios conectados
+function onConnectedUsers(callback) {
+  socket.on('connected-users', (data) => {
+    callback(data);
+  });
+}
+
 export default boot(({ app }) => {
   // Hacer que las funciones de WebSocket estén disponibles en toda la aplicación
   app.config.globalProperties.$socket = {
@@ -86,7 +96,8 @@ export default boot(({ app }) => {
     sendDiagramUpdate,
     onDiagramUpdate,
     onUserJoined,
-    onUserLeft
+    onUserLeft,
+    onConnectedUsers
   };
 });
 
@@ -96,5 +107,6 @@ export {
   sendDiagramUpdate,
   onDiagramUpdate,
   onUserJoined,
-  onUserLeft
+  onUserLeft,
+  onConnectedUsers
 };

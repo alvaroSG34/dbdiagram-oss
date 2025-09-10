@@ -45,6 +45,7 @@
   import { computed, ref, watch, onMounted } from 'vue'
   import { snap } from '../../utils/MathUtil'
   import { sendDiagramUpdate } from '../../boot/socket'
+  import { throttle } from 'lodash'
 
   const props = defineProps({
     name: String,
@@ -95,7 +96,8 @@ console.log(tableStates);
 
   const highlight = ref(false)
   const dragging = ref(false)
-  const dragOffset = ref(null)
+  // Define dragOffset as an object with x and y properties
+  const dragOffset = { x: 0, y: 0 }
   const gridSize = store.subGridSize
   const gridSnap = store.grid.snap
 
@@ -106,6 +108,29 @@ console.log(tableStates);
     highlight.value = false
     dragging.value = false
   }
+  
+  // Throttled function to send position updates during dragging
+  const sendThrottledPositionUpdate = throttle((groupPosition, tables) => {
+    // Enviar la posición del grupo de tablas durante el arrastre
+    sendDiagramUpdate('tablegroup-position-update', {
+      groupId: props.id,
+      position: groupPosition,
+      isDragging: true // Flag to indicate this is a throttled update during drag
+    });
+
+    // También enviar las posiciones actualizadas de cada tabla del grupo
+    for(const table of tables) {
+      sendDiagramUpdate('table-position-update', {
+        tableId: table.id,
+        position: {
+          x: table.x,
+          y: table.y
+        },
+        isDragging: true // Flag to indicate this is a throttled update during drag
+      });
+    }
+  }, 50); // Send at most one update every 50ms
+
   const drag = ({
     offsetX,
     offsetY
@@ -124,43 +149,55 @@ console.log(tableStates);
       table.x = table.x + dX;
       table.y = table.y + dY;
     }
+    
+    // Send throttled position updates during dragging
+    sendThrottledPositionUpdate(
+      { x: state.value.x, y: state.value.y },
+      affectedTables.value
+    );
   }
+  
   const drop = (e) => {
     dragging.value = false
     highlight.value = false
 
+    // Cancel any pending throttled updates
+    sendThrottledPositionUpdate.cancel();
+
     console.log(`TableGroup ${props.id} movido a:`, {x: state.value.x, y: state.value.y});
     console.log("Tablas afectadas:", affectedTables.value);
     
-    // Esperar un poco para asegurar que las posiciones finales se hayan aplicado correctamente
-    setTimeout(() => {
-      // Enviar la posición final del grupo de tablas
-      sendDiagramUpdate('tablegroup-position-update', {
-        groupId: props.id,
+    // Enviar actualización final con la posición exacta al soltar
+    // Enviar la posición final del grupo de tablas
+    sendDiagramUpdate('tablegroup-position-update', {
+      groupId: props.id,
+      position: {
+        x: state.value.x,
+        y: state.value.y
+      },
+      isDragging: false // Final position update
+    });
+
+    // También enviar las posiciones actualizadas de cada tabla del grupo
+    for(const table of affectedTables.value) {
+      sendDiagramUpdate('table-position-update', {
+        tableId: table.id,
         position: {
-          x: state.value.x,
-          y: state.value.y
-        }
+          x: table.x,
+          y: table.y
+        },
+        isDragging: false // Final position update
       });
-
-      // También enviar las posiciones actualizadas de cada tabla del grupo
-      for(const table of affectedTables.value) {
-        sendDiagramUpdate('table-position-update', {
-          tableId: table.id,
-          position: {
-            x: table.x,
-            y: table.y
-          }
-        });
-      }
-    }, 50);
-
-    dragOffset.x = null
-    dragOffset.y = null
+    }
+    
+    // Reset drag offset and remove event listeners
+    dragOffset.x = 0
+    dragOffset.y = 0
     props.containerRef.removeEventListener('mousemove', drag, { passive: true })
     props.containerRef.removeEventListener('mouseup', drop, { passive: true })
     props.containerRef.removeEventListener('mouseleave', onMouseLeave, { passive: true })
   }
+  
   const startDrag = ({
     offsetX,
     offsetY
@@ -174,7 +211,6 @@ console.log(tableStates);
     dragOffset.x = p.x - state.value.x
     dragOffset.y = p.y - state.value.y
 
-    dragOffset.value = props.containerRef.createSVGPoint()
     props.containerRef.addEventListener('mousemove', drag, { passive: true })
     props.containerRef.addEventListener('mouseup', drop, { passive: true })
     props.containerRef.addEventListener('mouseleave', onMouseLeave, { passive: true })

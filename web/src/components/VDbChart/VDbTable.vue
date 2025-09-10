@@ -55,6 +55,7 @@
   import { snap } from '../../utils/MathUtil'
   import { useEditorStore } from '../../store/editor'
   import { sendDiagramUpdate } from '../../boot/socket'
+  import { throttle } from 'lodash'
 
   const props = defineProps({
     id: Number,
@@ -138,6 +139,15 @@
     dragging.value = false
   }
 
+  // Throttled function to send position updates during dragging
+  const sendThrottledPositionUpdate = throttle((x, y) => {
+    sendDiagramUpdate('table-position-update', {
+      tableId: props.id,
+      position: { x, y },
+      isDragging: true // Flag to indicate this is a throttled update during drag
+    });
+  }, 50); // Send at most one update every 50ms
+
   const drag = ({
     offsetX,
     offsetY
@@ -149,24 +159,30 @@
     state.value.x = snap(p.x - dragOffsetX.value, gridSnap)
     state.value.y = snap(p.y - dragOffsetY.value, gridSnap)
     emit('update:position', state.value)
+    
+    // Send throttled position update while dragging
+    sendThrottledPositionUpdate(state.value.x, state.value.y);
   }
+  
   const drop = (e) => {
     dragging.value = false
     highlight.value = false
 
+    // Cancel any pending throttled updates
+    sendThrottledPositionUpdate.cancel();
+
     // Enviar la posición final de la tabla a todos los clientes
     console.log(`Tabla ${props.id} movida a:`, {x: state.value.x, y: state.value.y});
     
-    // Esperar un poco para asegurar que la posición final se haya aplicado correctamente
-    setTimeout(() => {
-      sendDiagramUpdate('table-position-update', {
-        tableId: props.id,
-        position: {
-          x: state.value.x,
-          y: state.value.y
-        }
-      });
-    }, 50);
+    // Enviar actualización final con la posición exacta al soltar
+    sendDiagramUpdate('table-position-update', {
+      tableId: props.id,
+      position: {
+        x: state.value.x,
+        y: state.value.y
+      },
+      isDragging: false // Final position update
+    });
 
     dragOffsetX.value = null
     dragOffsetY.value = null
