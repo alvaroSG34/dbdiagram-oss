@@ -5,7 +5,6 @@ import { useFilesStore } from "src/store/files";
 
 const throttledSave = debounce(save, 150);
 const autoSave = debounce(() => {
-  console.log("autosave");
   const files = useFilesStore();
   files.saveFile()
 }, 200);

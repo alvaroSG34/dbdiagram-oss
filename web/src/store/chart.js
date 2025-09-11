@@ -70,12 +70,20 @@ export const useChartStore = defineStore("chart", {
     },
     getRef(state) {
       return (refId) => {
-        if (!(refId in state.refs))
+        if (!(refId in state.refs)) {
           state.refs[refId] = {
             endpoints: [],
             vertices: [],
-            auto: true
+            auto: true,
+            relationType: 'association', // Default relationship type
+            startMarker: false,         // Whether to show marker at start 
+            endMarker: true             // Whether to show marker at end (true for all types)
           };
+        }
+        // Make sure the relationship type is always defined
+        if (!state.refs[refId].relationType) {
+          state.refs[refId].relationType = 'association';
+        }
         return state.refs[refId];
       };
     },
@@ -112,6 +120,15 @@ export const useChartStore = defineStore("chart", {
         show: false
       };
     },
+    
+    showRelationshipTypeDialog(refId, initialType = 'association') {
+      // Implementation will be in the main layout or app component
+      // We'll return the info and let the component handle it
+      return {
+        refId, 
+        initialType
+      };
+    },
     loadDatabase(database) {
       for(const tableGroup of database.schemas[0].tableGroups)
       {
@@ -121,9 +138,30 @@ export const useChartStore = defineStore("chart", {
       {
         this.getTable(table.id);
       }
+      
+      // Save existing relationship types before updating from the database
+      const existingRefTypes = {};
+      for(const refId in this.refs) {
+        if(this.refs[refId].relationType) {
+          existingRefTypes[refId] = {
+            relationType: this.refs[refId].relationType,
+            startMarker: this.refs[refId].startMarker,
+            endMarker: this.refs[refId].endMarker
+          };
+        }
+      }
+      
+      // Update refs from the database but preserve relationship types
       for(const ref of database.schemas[0].refs)
       {
-        this.getRef(ref.id);
+        const currentRef = this.getRef(ref.id);
+        
+        // Preserve existing relationship type if available
+        if(existingRefTypes[ref.id]) {
+          currentRef.relationType = existingRefTypes[ref.id].relationType;
+          currentRef.startMarker = existingRefTypes[ref.id].startMarker;
+          currentRef.endMarker = existingRefTypes[ref.id].endMarker;
+        }
       }
 
       this.loaded = true;
@@ -159,14 +197,29 @@ export const useChartStore = defineStore("chart", {
     },
 
     updateTable(tableId, newTable) {
-      this.tables.$patch({
-        [tableId]: newTable
+      // Direct assignment since tables is an object, not a state property with $patch
+      this.tables[tableId] = newTable;
+      
+      // Force reactivity by using $patch on the parent
+      this.$patch({
+        tables: { ...this.tables }
       });
     },
     updateRef(refId, newRef) {
-      this.refs.$patch({
-        [refId]: newRef
+      console.log(`Chart store: Updating ref ${refId} from`, 
+                  JSON.stringify(this.refs[refId]),
+                  'to', JSON.stringify(newRef));
+      
+      // Direct assignment since refs is an object, not a state property with $patch
+      this.refs[refId] = newRef;
+      
+      // Force reactivity by using $patch on the parent with a fresh object
+      this.$patch({
+        refs: JSON.parse(JSON.stringify(this.refs)) // Deep clone to ensure reactivity
       });
+      
+      console.log(`Chart store: After update, ref ${refId} is now:`, 
+                  JSON.stringify(this.refs[refId]));
     }
   }
 });

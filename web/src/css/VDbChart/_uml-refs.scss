@@ -1,0 +1,99 @@
+.db-ref {
+  &__path {
+    fill: none;
+    stroke: var(--ref-color);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: butt;
+  }
+  &__hitbox {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 29;
+  }
+
+  &__highlight {
+    .db-ref__path {
+      stroke: var(--ref-highlight-color);
+    }
+
+    .db-ref__control-point {
+      display: unset;
+    }
+
+    .db-ref__marker {
+      opacity: 1;
+    }
+  }
+
+  &__control-point {
+    display: none;
+    fill: black;
+    stroke: var(--ref-highlight-color);
+    stroke-width: 1;
+    r: 5;
+
+    &__highlight {
+      r: 6;
+      stroke-width: 2;
+    }
+
+    &__dragging {
+      fill: var(--ref-highlight-color)
+    }
+  }
+
+  &__marker {
+    opacity: 0.9;
+    
+    path {
+      stroke: var(--ref-color);
+      stroke-width: 2;
+    }
+  }
+  
+  &__highlight &__marker path {
+    stroke: var(--ref-highlight-color);
+  }
+
+  // Association
+  &__association {
+    &__marker-association-end path {
+      stroke: var(--ref-color);
+      stroke-width: 2;
+    }
+  }
+
+  // Composition
+  &__composition {
+    &__marker-composition-start path {
+      fill: black;
+      stroke: var(--ref-color);
+    }
+    &__marker-composition-end path {
+      stroke: var(--ref-color);
+      stroke-width: 2;
+    }
+  }
+
+  // Aggregation
+  &__aggregation {
+    &__marker-aggregation-start path {
+      fill: white;
+      stroke: var(--ref-color);
+    }
+    &__marker-aggregation-end path {
+      stroke: var(--ref-color);
+      stroke-width: 2;
+    }
+  }
+
+  // Generalization (inheritance)
+  &__generalization {
+    &__marker-generalization-start path,
+    &__marker-generalization-end path {
+      fill: white;
+      stroke: var(--ref-color);
+    }
+  }
+}

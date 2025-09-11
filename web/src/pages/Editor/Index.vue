@@ -13,6 +13,7 @@
         <dbml-graph
           class="db-graph-view"
           :schema="schema"
+          :key="graphRefreshKey"
         />
       </template>
     </q-splitter>
@@ -29,6 +30,7 @@
   const editorRef = ref(null)
   const editor = useEditorStore()
   const q = useQuasar()
+  const graphRefreshKey = ref(0) // Key to force DbmlGraph to re-render
 
   const sourceText = computed({
     get: () => editor.getSourceText,
@@ -45,6 +47,14 @@
   })
 
   const schema = computed(() => editor.getDatabase?.schemas?.find(x => true))
+  
+  // Add a global event listener to refresh the graph when relationship types change
+  onMounted(() => {
+    window.refreshDbmlGraph = () => {
+      console.log("Forcing DbmlGraph refresh");
+      graphRefreshKey.value++;
+    };
+  })
 </script>
 
 <style scoped>

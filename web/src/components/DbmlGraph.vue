@@ -56,7 +56,7 @@
 
 <script setup>
   import { useEditorStore } from '../store/editor'
-  import { computed, onMounted, ref, watch } from 'vue'
+  import { computed, onMounted, ref, watch, nextTick } from 'vue'
   import VDbChart from './VDbChart/VDbChart'
   import { useChartStore } from '../store/chart'
   import VDbStructure from './VDbStructure'
@@ -186,6 +186,41 @@
             }
           } catch (error) {
             console.error("Error al actualizar grupo en schema:", error);
+          }
+        } else if (data.updateType === 'relation-type-update' && data.payload && data.payload.refId) {
+          // Actualizar el tipo de relación
+          const { refId, relationType, startMarker, endMarker } = data.payload;
+          
+          // Actualizar en el store de chart
+          try {
+            console.log("Socket recibido para actualizar relación:", refId, relationType);
+            const refStore = chart.getRef(refId);
+            if (refStore) {
+              console.log("Relación antes de actualizar:", JSON.stringify(refStore));
+              console.log("Actualizando tipo de relación en store:", refId, relationType);
+              
+              // Force Vue to detect the changes by creating a completely new object
+              // and properly applying the relationship type
+              const updatedRef = JSON.parse(JSON.stringify(refStore)); // Deep clone
+              updatedRef.relationType = relationType;
+              updatedRef.startMarker = startMarker;
+              updatedRef.endMarker = endMarker;
+              
+              // Update the ref in the store
+              chart.updateRef(refId, updatedRef);
+              
+              // Force a re-render if needed
+              nextTick(() => {
+                console.log("Forced re-render after relationship type update");
+              });
+              
+              // Verify the update was successful
+              const afterUpdate = chart.getRef(refId);
+              console.log("Relación después de actualizar:", JSON.stringify(afterUpdate));
+              console.log("¿Actualización exitosa?", afterUpdate.relationType === relationType);
+            }
+          } catch (error) {
+            console.error("Error al actualizar relación en store:", error);
           }
         }
       } catch (error) {

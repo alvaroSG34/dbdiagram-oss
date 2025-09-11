@@ -59,9 +59,10 @@
       </g>
       <g id="refs-layer"
          v-if="store.loaded">
-        <v-db-ref v-for="ref of refs"
+        <component :is="getRefComponent(ref)"
+                  v-for="ref of refs"
                   :key="ref.id"
-                  v-bind="ref"
+                  v-bind="getRefProps(ref)"
                   :container-ref="root"
                   @click.passive="dblclickHelper(onRefDblClick, $event, ref)"
                   @mouseenter.passive="onRefMouseEnter"
@@ -123,6 +124,7 @@
   import { computed, nextTick, onMounted, reactive, ref, watch, watchEffect } from 'vue'
   import VDbTable from './VDbTable'
   import VDbRef from './VDbRef'
+  import VDbRefUml from './VDbRefUml'
   import svgPanZoom from 'svg-pan-zoom'
   import { useChartStore } from '../../store/chart'
   import VDbTooltip from './VDbTooltip'
@@ -196,6 +198,42 @@
     })
     position.x = p.x
     position.y = p.y
+  }
+  
+  // Helper function to determine which component to use for the reference
+  const getRefComponent = (ref) => {
+    // Always use UML version for now since we're implementing UML relationships
+    return VDbRefUml;
+  }
+  
+  // Helper function to prepare props for the reference component
+  const getRefProps = (ref) => {
+    // Get the ref from the store to ensure we have the latest data
+    const storeRef = store.getRef(ref.id)
+    
+    // Start with all the ref props, preferring store values
+    const props = { 
+      ...ref,
+      relationType: storeRef.relationType || ref.relationType,
+      startMarker: storeRef.startMarker !== undefined ? storeRef.startMarker : ref.startMarker,
+      endMarker: storeRef.endMarker !== undefined ? storeRef.endMarker : ref.endMarker
+    }
+    
+    // If no relationType is defined, set a default
+    if (!props.relationType) {
+      props.relationType = 'association'
+    }
+    
+    // If start/endMarker are not defined, set defaults based on relationType
+    if (props.startMarker === undefined) {
+      props.startMarker = ['composition', 'aggregation', 'generalization'].includes(props.relationType)
+    }
+    
+    if (props.endMarker === undefined) {
+      props.endMarker = true // All relationship types should have an end marker now
+    }
+    
+    return props
   }
 
   const saveSizes = () => {
@@ -324,6 +362,19 @@
 
   function onRefDblClick (e, ref) {
     console.log("onRefDblClick", e, ref);
+    
+    // Get the latest ref data from the store to ensure we have the correct type
+    const storeRef = store.getRef(ref.id);
+    const relationType = storeRef.relationType || 'association';
+    
+    // Show the relationship type dialog when double clicking a ref
+    if (window.showRelationshipTypeDialogHandler) {
+      console.log("Showing relationship dialog for ref:", ref.id, "current type:", relationType);
+      window.showRelationshipTypeDialogHandler(ref.id, relationType);
+    } else {
+      console.error("showRelationshipTypeDialogHandler not available on window!");
+    }
+    
     emit('dblclick:ref', e, ref);
   }
   function onFieldDblClick (e, field) {
@@ -363,11 +414,9 @@
   let lastClick = Date.now();
   let lastClicked = null;
   function dblclickHelper(fn, e, ...args) {
-    console.log("dblclickHelper", e, ...args)
     const nowClick = Date.now();
 
     if (((nowClick - lastClick) < 500) && lastClicked === e.target) {
-      console.log("dblclickHelperYES", e, ...args)
       fn(e, ...args);
     }
     lastClicked = e.target;

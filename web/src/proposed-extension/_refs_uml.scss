@@ -1,0 +1,98 @@
+/* Estilos propuestos para soportar relaciones UML */
+
+.db-ref {
+  /* Estilos base existentes */
+  &__path {
+    fill: none;
+    stroke: var(--ref-color);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: butt;
+  }
+  &__hitbox {
+    fill: none;
+    stroke: transparent;
+    stroke-width: 29;
+  }
+  
+  /* Estilos para tipos específicos de relaciones */
+  &__association {
+    /* Estilos para relaciones de asociación (predeterminado) */
+  }
+  
+  &__aggregation {
+    /* Estilos para relaciones de agregación */
+  }
+  
+  &__composition {
+    /* Estilos para relaciones de composición */
+    .db-ref__path {
+      stroke-width: 2.5; /* Ligeramente más ancho para enfatizar */
+    }
+  }
+  
+  &__generalization {
+    /* Estilos para relaciones de generalización/herencia */
+  }
+  
+  &__realization {
+    /* Estilos para relaciones de realización/implementación */
+    .db-ref__path {
+      stroke-dasharray: 5, 5; /* Línea punteada */
+    }
+  }
+  
+  /* Marcadores de extremo para diferentes tipos de relaciones */
+  &__marker {
+    &-arrow {
+      /* Estilo para flechas de navegabilidad */
+    }
+    
+    &-diamond-empty {
+      /* Estilo para diamantes de agregación */
+    }
+    
+    &-diamond-filled {
+      /* Estilo para diamantes de composición */
+    }
+    
+    &-triangle-empty {
+      /* Estilo para triángulos de generalización */
+    }
+  }
+  
+  /* Estilo para etiquetas de relación */
+  &__label {
+    font-size: 12px;
+    fill: var(--text-color);
+    text-anchor: middle;
+    pointer-events: none;
+  }
+  
+  /* Estilos existentes para resaltar y puntos de control */
+  &__highlight {
+    .db-ref__path {
+      stroke: var(--ref-highlight-color);
+    }
+    .db-ref__control-point {
+      display: unset;
+    }
+  }
+  
+  &__control-point {
+    display: none;
+    fill: black;
+    stroke: var(--ref-highlight-color);
+    stroke-width: 1;
+    r: 5;
+    
+    &__highlight {
+      r: 6;
+      stroke-width: 2;
+    }
+    
+    &__dragging {
+      fill: var(--ref-highlight-color)
+    }
+  }
+}

@@ -26,8 +26,6 @@ export const useFilesStore = defineStore("files", {
   },
   actions: {
     loadFileList() {
-      console.log("loading file list");
-
       fs.keys()
         .then(keys => {
           this.files = keys;
@@ -35,7 +33,6 @@ export const useFilesStore = defineStore("files", {
     },
     loadFile(fileName) {
       this.loadFileList();
-      console.log("loading file", fileName);
 
       fs.getItem(fileName)
         .then(file => {
@@ -72,7 +69,6 @@ export const useFilesStore = defineStore("files", {
           fileName = `Untitled (${i++})`;
         }
       }
-      console.log("saving file", fileName);
 
       const editor = useEditorStore();
       const chart = useChartStore();

@@ -4,7 +4,6 @@ function snapSingle(value, snapSize) {
 }
 
 export function snap(value, snapSize) {
-  console.log("snap", value, snapSize);
   if(typeof value === "number") {
     return snapSingle(value, snapSize);
   }

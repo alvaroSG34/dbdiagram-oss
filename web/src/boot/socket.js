@@ -43,6 +43,13 @@ function sendDiagramUpdate(updateType, payload) {
   }
 
   console.log(`Enviando actualización [${updateType}]:`, payload);
+  
+  // For relation-type-update, apply the change locally as well
+  if (updateType === 'relation-type-update') {
+    console.log('Applying relation type update locally for immediate feedback');
+    // Local update will be handled by the component directly
+  }
+  
   socket.emit('diagram-update', {
     projectId: currentProjectId,
     updateType,
