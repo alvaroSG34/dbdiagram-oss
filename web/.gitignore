@@ -33,4 +33,9 @@ yarn-error.log*
 *.sln
 /.vscode
 
+# Environment files (contains API keys)
+.env
+.env.local
+.env.production
+
 /api/node_modules

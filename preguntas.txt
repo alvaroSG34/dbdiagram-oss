@@ -4,5 +4,7 @@ genere el diagrama y lo muestre, dado un prompt.
 - El software es capaz de importar imagenes de diagrama conceptual y crear un
 texto DBML el cual se muestre en el editor
 
-- El software permite crear diferentes tipos de relaciones
+- El software permite crear diferentes tipos de relaciones (Association,Composition,Agregacion,Realizacion)
+
+ 
 

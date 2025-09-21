@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Service Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #fff;
+        }
+        .container {
+            background: #252526;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            background: #1e1e1e;
+            color: #fff;
+            font-size: 14px;
+        }
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #1177bb;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .status.success {
+            background: #0e7245;
+            border-left: 4px solid #16a085;
+        }
+        .status.error {
+            background: #722f37;
+            border-left: 4px solid #e74c3c;
+        }
+        .status.info {
+            background: #2e3440;
+            border-left: 4px solid #3498db;
+        }
+        .code-block {
+            background: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            overflow-x: auto;
+        }
+        .provider-info {
+            display: inline-block;
+            background: #0e639c;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🤖 AI Service Test</h1>
+    
+    <div class="container">
+        <h2>Configuration</h2>
+        
+        <div class="input-group">
+            <label for="apiKey">Gemini API Key:</label>
+            <input type="text" id="apiKey" placeholder="Paste your Gemini API key here">
+            <button onclick="setApiKey()">Set API Key</button>
+        </div>
+        
+        <div class="input-group">
+            <label for="provider">AI Provider:</label>
+            <select id="provider" onchange="switchProvider()" style="width: 200px; padding: 8px; background: #1e1e1e; color: #fff; border: 1px solid #3c3c3c;">
+                <option value="gemini">Google Gemini (Free)</option>
+                <option value="openai">OpenAI GPT-4o</option>
+                <option value="ollama">Ollama Local</option>
+            </select>
+            <span id="providerStatus" class="provider-info">Gemini</span>
+        </div>
+        
+        <button onclick="checkConfig()">Check Configuration</button>
+    </div>
+
+    <div class="container">
+        <h2>Test AI Generation</h2>
+        
+        <div class="input-group">
+            <label for="prompt">Prompt:</label>
+            <textarea id="prompt" rows="3" placeholder="e.g., Create tables for users, roles, and permissions with proper relationships">Create tables for users, roles, and permissions with proper relationships</textarea>
+        </div>
+        
+        <button onclick="generateDbml()" id="generateBtn">Generate DBML</button>
+        <button onclick="clearResults()">Clear Results</button>
+        
+        <div id="status"></div>
+        <div id="results"></div>
+    </div>
+
+    <script type="module">
+        // Import our AI service
+        import aiService from './src/services/aiService.js';
+        
+        // Make it globally available for the HTML buttons
+        window.aiService = aiService;
+        
+        // Auto-load API key if it exists
+        window.addEventListener('load', () => {
+            const savedKey = localStorage.getItem('ai_gemini_key');
+            if (savedKey) {
+                document.getElementById('apiKey').value = savedKey;
+                showStatus('API key loaded from localStorage', 'info');
+            }
+        });
+        
+        window.setApiKey = function() {
+            const apiKey = document.getElementById('apiKey').value.trim();
+            if (!apiKey) {
+                showStatus('Please enter an API key', 'error');
+                return;
+            }
+            
+            const provider = document.getElementById('provider').value;
+            aiService.setApiKey(provider, apiKey);
+            showStatus(`API key set for ${provider}`, 'success');
+        };
+        
+        window.switchProvider = function() {
+            const provider = document.getElementById('provider').value;
+            try {
+                aiService.switchProvider(provider);
+                document.getElementById('providerStatus').textContent = provider.toUpperCase();
+                showStatus(`Switched to ${provider}`, 'info');
+            } catch (error) {
+                showStatus(`Error switching provider: ${error.message}`, 'error');
+            }
+        };
+        
+        window.checkConfig = function() {
+            const info = aiService.getProviderInfo();
+            showStatus(`
+Current Provider: ${info.current}
+Has API Key: ${info.hasApiKey ? '✅' : '❌'}
+Available Providers: ${info.available.join(', ')}
+Model: ${info.config.model}
+Rate Limit: ${info.config.rateLimit}
+            `, 'info');
+        };
+        
+        window.generateDbml = async function() {
+            const prompt = document.getElementById('prompt').value.trim();
+            if (!prompt) {
+                showStatus('Please enter a prompt', 'error');
+                return;
+            }
+            
+            const generateBtn = document.getElementById('generateBtn');
+            generateBtn.disabled = true;
+            generateBtn.textContent = 'Generating...';
+            
+            showStatus('🤖 Generating DBML...', 'info');
+            
+            try {
+                const result = await aiService.generateDbml(prompt);
+                
+                if (result.success) {
+                    showStatus(`✅ Generated successfully with ${result.provider} (${result.duration}ms)`, 'success');
+                    showResults(result);
+                } else {
+                    showStatus('❌ Generation failed', 'error');
+                }
+                
+            } catch (error) {
+                showStatus(`❌ Error: ${error.message}`, 'error');
+                console.error('Generation error:', error);
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.textContent = 'Generate DBML';
+            }
+        };
+        
+        window.clearResults = function() {
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('status').innerHTML = '';
+        };
+        
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        function showResults(result) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `
+                <h3>Generated DBML:</h3>
+                <div class="code-block">${result.dbmlCode}</div>
+                ${result.explanation ? `<p><strong>Explanation:</strong> ${result.explanation}</p>` : ''}
+                ${result.usage ? `<p><strong>Usage:</strong> ${JSON.stringify(result.usage, null, 2)}</p>` : ''}
+            `;
+        }
+    </script>
+</body>
+</html>
