@@ -146,6 +146,10 @@
             // Marcar como actualización remota para evitar bucles
             isRemoteUpdate = true;
             emit('update:source', data.payload.code);
+            // Forzar actualización visual del v-model
+            if (typeof props.source !== 'undefined') {
+              props.source = data.payload.code;
+            }
             isRemoteUpdate = false;
           }
         });

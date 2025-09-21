@@ -25,13 +25,13 @@
     <!-- Start Marker based on relationship type -->
     <g v-if="startMarker" :transform="`translate(${startMarkerPosition.x}, ${startMarkerPosition.y}) rotate(${startMarkerRotation})`">
       <g v-if="relationType === 'composition'" class="db-ref__marker db-ref__marker-composition-start">
-        <path d="M -15,-7.5 L 0,0 L -15,7.5 L -30,0 Z" fill="black" stroke="black" stroke-width="2" />
+        <path d="M 50,0 L 25,-15 L 0,0 L 25,15 Z" fill="black" stroke="black" stroke-width="3" />
       </g>
       <g v-else-if="relationType === 'aggregation'" class="db-ref__marker db-ref__marker-aggregation-start">
-        <path d="M -15,-7.5 L 0,0 L -15,7.5 L -30,0 Z" fill="white" stroke="black" stroke-width="2" />
+        <path d="M 50,0 L 25,-15 L 0,0 L 25,15 Z" fill="white" stroke="black" stroke-width="3" />
       </g>
       <g v-else-if="relationType === 'generalization'" class="db-ref__marker db-ref__marker-generalization-start">
-        <path d="M -15,-10 L 0,0 L -15,10 Z" fill="white" stroke="black" stroke-width="2" />
+        <path d="M -15,-10 L 0,0 L -50,10 Z" fill="white" stroke="black" stroke-width="2" />
       </g>
       <g v-else-if="relationType === 'association'" class="db-ref__marker db-ref__marker-association-start">
         <!-- No marker for simple association start -->
@@ -44,13 +44,13 @@
         <path d="M 0,-7.5 L 15,0 L 0,7.5" fill="none" stroke="black" stroke-width="2" />
       </g>
       <g v-else-if="relationType === 'generalization'" class="db-ref__marker db-ref__marker-generalization-end">
-        <path d="M -15,-10 L 0,0 L -15,10 Z" fill="white" stroke="black" stroke-width="2" />
+        <path d="M -25,-18 L 0,0 L -25,18 Z" fill="white" stroke="black" stroke-width="3" />
       </g>
       <g v-else-if="relationType === 'composition'" class="db-ref__marker db-ref__marker-composition-end">
         <path d="M 0,-7.5 L 15,0 L 0,7.5" fill="none" stroke="black" stroke-width="2" />
       </g>
       <g v-else-if="relationType === 'aggregation'" class="db-ref__marker db-ref__marker-aggregation-end">
-        <path d="M 0,-7.5 L 15,0 L 0,7.5" fill="none" stroke="black" stroke-width="2" />
+        <path d="M -15,-10 L 0,0 L -15,10 Z" fill="none" stroke="black" stroke-width="2" />
       </g>
     </g>
     
@@ -212,35 +212,31 @@
     const startElAnchors = startAnchors.value
     const endElAnchors = endAnchors.value
 
+    // Solo recalcular si no hay puntos válidos
     if (!s.vertices.length || s.vertices.some(v => Number.isNaN(v.x) || Number.isNaN(v.y))) {
       s.auto = true
-    } else if (!s.auto) {
-      return
-    }
-
-    const [start, end] = getClosest(startElAnchors, endElAnchors)
-
-    const minX = Math.min(start.x, end.x)
-    const minY = Math.min(start.y, end.y)
-    const maxX = Math.max(start.x, end.x)
-    const maxY = Math.max(start.y, end.y)
-    const midX = (minX + (((maxX - minX) || 2) / 2))
-    const midY = (minY + (((maxY - minY) || 2) / 2))
-    const mid = {
-      x: midX,
-      y: midY
-    }
-
-    s.vertices = [
-      {
-        x: mid.x,
-        y: start.y
-      },
-      {
-        x: mid.x,
-        y: end.y
+      const [start, end] = getClosest(startElAnchors, endElAnchors)
+      const minX = Math.min(start.x, end.x)
+      const minY = Math.min(start.y, end.y)
+      const maxX = Math.max(start.x, end.x)
+      const maxY = Math.max(start.y, end.y)
+      const midX = (minX + (((maxX - minX) || 2) / 2))
+      const midY = (minY + (((maxY - minY) || 2) / 2))
+      const mid = {
+        x: midX,
+        y: midY
       }
-    ]
+      s.vertices = [
+        {
+          x: mid.x,
+          y: start.y
+        },
+        {
+          x: mid.x,
+          y: end.y
+        }
+      ]
+    } // Si ya existen y son válidos, no modificar s.vertices
   }
 
   const path = computed(() => {
@@ -403,3 +399,18 @@
     deep: true
   })
 </script>
+
+<style scoped>
+.db-ref__marker {
+  z-index: 1000;
+}
+.db-ref__marker-generalization-end {
+  filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
+}
+.db-ref__marker-composition-start {
+  filter: drop-shadow(0 0 4px rgba(0,0,0,0.8));
+}
+.db-ref__marker-aggregation-start {
+  filter: drop-shadow(0 0 4px rgba(0,0,0,0.7));
+}
+</style>

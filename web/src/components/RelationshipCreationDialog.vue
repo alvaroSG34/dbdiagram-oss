@@ -1,8 +1,12 @@
 <template>
   <q-dialog v-model="isOpen" persistent>
-    <q-card style="width: 600px; max-width: 90vw;">
+    <q-card style="width: 700px; max-width: 90vw;">
       <q-card-section>
-        <div class="text-h6">Change Relationship Type</div>
+        <div class="text-h6">Create New Relationship</div>
+        <div class="text-subtitle2 q-mt-sm">
+          From: <strong>{{ connectionInfo?.source?.field?.name }}</strong> ({{ connectionInfo?.source?.table?.name }}) 
+          → To: <strong>{{ connectionInfo?.target?.field?.name }}</strong> ({{ connectionInfo?.target?.table?.name }})
+        </div>
       </q-card-section>
 
       <q-card-section class="q-pt-none">
@@ -48,11 +52,21 @@
             </q-card>
           </div>
         </div>
+
+        <div class="q-mt-md">
+          <q-input
+            v-model="relationshipName"
+            label="Relationship Name (optional)"
+            placeholder="e.g. user_posts, belongs_to"
+            outlined
+            dense
+          />
+        </div>
       </q-card-section>
 
       <q-card-actions align="right">
-        <q-btn flat label="Cancel" color="primary" v-close-popup @click="$emit('cancel')" />
-        <q-btn flat label="Apply" color="primary" @click="confirm" :disable="!selectedType" />
+        <q-btn flat label="Cancel" color="primary" @click="cancel" />
+        <q-btn flat label="Create Relationship" color="primary" @click="confirm" :disable="!selectedType" />
       </q-card-actions>
     </q-card>
   </q-dialog>
@@ -60,26 +74,19 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import { useChartStore } from 'src/store/chart'
-import { useEditorStore } from 'src/store/editor'
-import { sendDiagramUpdate } from 'src/boot/socket'
 
 const props = defineProps({
-  refId: {
-    type: Number,
+  connectionInfo: {
+    type: Object,
     required: true
-  },
-  initialType: {
-    type: String,
-    default: 'association'
   }
 })
 
 const emit = defineEmits(['cancel', 'confirm'])
-const chartStore = useChartStore()
 
 const isOpen = ref(true)
-const selectedType = ref(props.initialType)
+const selectedType = ref('association') // Default selection
+const relationshipName = ref('')
 
 const relationshipTypes = [
   {
@@ -109,63 +116,21 @@ const selectType = (type) => {
 }
 
 const confirm = () => {
-  const ref = chartStore.getRef(props.refId)
-
-  // Actualizar el store visual
-  const updatedRefData = {
-    ...ref,
-    relationType: selectedType.value,
-    startMarker: ['composition', 'aggregation'].includes(selectedType.value),
-    endMarker: true
-  };
-  chartStore.updateRef(props.refId, updatedRefData);
-
-  // Actualizar el texto DBML en el editor
-  try {
-    const editorStore = useEditorStore();
-    let dbml = editorStore.getSourceText;
-      const relationTexts = {
-        association: 'Relación simple',
-        composition: 'Composición: parte no puede existir sin el todo',
-        aggregation: 'Agregación: parte puede existir independientemente',
-        generalization: 'Generalización: herencia o "es-un"',
-      };
-      // Expresión regular para eliminar cualquier comentario de tipo relación previo
-      const relationCommentRegex = /\s*\/\/\s*(Relación simple|Composición: parte no puede existir sin el todo|Agregación: parte puede existir independientemente|Generalización: herencia o "es-un")\s*$/i;
-      dbml = dbml.split('\n').map(line => {
-        if (line.trim().toLowerCase().startsWith('ref:')) {
-          // Quitar cualquier comentario anterior de tipo relación
-          const lineWithoutComment = line.replace(relationCommentRegex, '');
-          const relationType = selectedType.value;
-          const comment = relationTexts[relationType] || '';
-          return lineWithoutComment.trimEnd() + (comment ? ` // ${comment}` : '');
-        }
-        return line;
-      }).join('\n');
-    editorStore.updateSourceText(dbml);
-    setTimeout(() => {
-      if (window && window.refreshDbmlGraph) window.refreshDbmlGraph();
-    }, 100);
-    console.log('DBML después:', dbml);
-  } catch (e) {
-    console.warn('No se pudo actualizar el comentario en el editor DBML:', e);
+  const relationshipData = {
+    type: selectedType.value,
+    name: relationshipName.value,
+    source: props.connectionInfo.source,
+    target: props.connectionInfo.target
   }
+  
+  console.log('Creating relationship:', relationshipData)
+  emit('confirm', relationshipData)
+  isOpen.value = false
+}
 
-  // Refrescar el diagrama
-  if (window.refreshDbmlGraph) {
-    console.log("Triggering graph refresh");
-    window.refreshDbmlGraph();
-  }
-
-  // Sincronizar con otros usuarios
-  sendDiagramUpdate('relation-type-update', {
-    refId: props.refId,
-    relationType: selectedType.value,
-    startMarker: updatedRefData.startMarker,
-    endMarker: updatedRefData.endMarker
-  })
-
-  emit('confirm', selectedType.value)
+const cancel = () => {
+  emit('cancel')
+  isOpen.value = false
 }
 
 // Watch for dialog close

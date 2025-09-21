@@ -25,6 +25,19 @@ export const useChartStore = defineStore("chart", {
       binds: null,
       width: 0,
       height: 0
+    },
+    // Estado para la creación visual de relaciones
+    connectionMode: {
+      active: false,
+      sourceField: null,
+      sourceTable: null,
+      tempLine: {
+        startX: 0,
+        startY: 0,
+        endX: 0,
+        endY: 0
+      },
+      mousePosition: { x: 0, y: 0 }
     }
   }),
   getters: {
@@ -206,20 +219,88 @@ export const useChartStore = defineStore("chart", {
       });
     },
     updateRef(refId, newRef) {
+      const prevPan = { ...this.pan };
+      const prevZoom = this.zoom;
       console.log(`Chart store: Updating ref ${refId} from`, 
                   JSON.stringify(this.refs[refId]),
                   'to', JSON.stringify(newRef));
-      
       // Direct assignment since refs is an object, not a state property with $patch
       this.refs[refId] = newRef;
-      
       // Force reactivity by using $patch on the parent with a fresh object
       this.$patch({
-        refs: JSON.parse(JSON.stringify(this.refs)) // Deep clone to ensure reactivity
+        refs: JSON.parse(JSON.stringify(this.refs)),
+        pan: prevPan,
+        zoom: prevZoom
       });
-      
       console.log(`Chart store: After update, ref ${refId} is now:`, 
                   JSON.stringify(this.refs[refId]));
+    },
+
+    // Acciones para el modo de conexión visual
+    startConnection(field, table) {
+      console.log('Starting connection from field:', field, 'in table:', table);
+      
+      this.connectionMode = {
+        active: true,
+        sourceField: field,
+        sourceTable: table,
+        tempLine: {
+          startX: 0,
+          startY: 0,
+          endX: 0,
+          endY: 0
+        },
+        mousePosition: { x: 0, y: 0 }
+      };
+    },
+
+    updateConnectionLine(mouseX, mouseY) {
+      if (this.connectionMode.active) {
+        this.connectionMode.mousePosition = { x: mouseX, y: mouseY };
+        this.connectionMode.tempLine.endX = mouseX;
+        this.connectionMode.tempLine.endY = mouseY;
+      }
+    },
+
+    cancelConnection() {
+      console.log('Canceling connection');
+      this.connectionMode = {
+        active: false,
+        sourceField: null,
+        sourceTable: null,
+        tempLine: {
+          startX: 0,
+          startY: 0,
+          endX: 0,
+          endY: 0
+        },
+        mousePosition: { x: 0, y: 0 }
+      };
+    },
+
+    completeConnection(targetField, targetTable) {
+      if (!this.connectionMode.active) return null;
+      
+      const sourceInfo = {
+        field: this.connectionMode.sourceField,
+        table: this.connectionMode.sourceTable
+      };
+      
+      const targetInfo = {
+        field: targetField,
+        table: targetTable
+      };
+      
+      console.log('Completing connection from', sourceInfo, 'to', targetInfo);
+      
+      // Cancelar el modo de conexión
+      this.cancelConnection();
+      
+      // Retornar la información de la conexión para que el componente padre la procese
+      return {
+        source: sourceInfo,
+        target: targetInfo
+      };
     }
   }
 });

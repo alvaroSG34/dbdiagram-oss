@@ -42,6 +42,7 @@
                   :key="field.id"
                   :width="state.width"
                   @click.passive="onFieldClick($event, field)"
+                  @connection-completed="onConnectionCompleted"
       />
     </g>
   </svg>
@@ -113,7 +114,8 @@
   const emit = defineEmits([
     'update:position',
     'click:header',
-    'click:field'
+    'click:field',
+    'connection-completed'
   ])
 
 
@@ -227,6 +229,11 @@
   }
   function onFieldClick (e, field) {
     emit('click:field', e, field);
+  }
+  
+  function onConnectionCompleted (connectionInfo) {
+    console.log('Connection completed in VDbTable:', connectionInfo);
+    emit('connection-completed', connectionInfo);
   }
 </script>
 

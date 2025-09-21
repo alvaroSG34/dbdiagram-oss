@@ -2,6 +2,7 @@
   <svg
     ref="root"
     class="db-chart"
+    :class="{ 'db-chart--connection-mode': store.connectionMode.active }"
     @mousemove.passive.capture="updateCursorPosition"
   >
     <defs>
@@ -77,6 +78,7 @@
                     :container-ref="root"
                     @click:header="dblclickHelper(onTableDblClick, $event, table)"
                     @click:field="(...e) => dblclickHelper(onFieldDblClick, ...e)"
+                    @connection-completed="onConnectionCompleted"
                     @mouseenter.passive="onTableMouseEnter"
                     @mouseleave.passive="onTableMouseLeave"
         />
@@ -84,6 +86,10 @@
       <g id="overlays-layer"
          v-if="store.loaded">
         <v-db-tooltip/>
+      </g>
+      <!-- Línea de conexión temporal para crear relaciones -->
+      <g id="connection-layer">
+        <v-db-connection-line />
       </g>
     </g>
     <g id="tools-layer">
@@ -121,16 +127,20 @@
 </template>
 
 <script setup>
-  import { computed, nextTick, onMounted, reactive, ref, watch, watchEffect } from 'vue'
+  import { computed, nextTick, onMounted, onBeforeUnmount, reactive, ref, watch, watchEffect } from 'vue'
   import VDbTable from './VDbTable'
   import VDbRef from './VDbRef'
   import VDbRefUml from './VDbRefUml'
+  import VDbConnectionLine from './VDbConnectionLine'
   import svgPanZoom from 'svg-pan-zoom'
   import { useChartStore } from '../../store/chart'
+  import { useEditorStore } from '../../store/editor'
+  import { sendDiagramUpdate, onDiagramUpdate } from '../../boot/socket'
   import VDbTooltip from './VDbTooltip'
   import VDbTableGroup from './VDbTableGroup'
 
   const store = useChartStore()
+  const editorStore = useEditorStore()
 
   const props = defineProps({
     tableGroups: {
@@ -198,6 +208,11 @@
     })
     position.x = p.x
     position.y = p.y
+    
+    // Actualizar línea de conexión si está activa
+    if (store.connectionMode.active) {
+      store.updateConnectionLine(p.x, p.y)
+    }
   }
   
   // Helper function to determine which component to use for the reference
@@ -226,7 +241,7 @@
     
     // If start/endMarker are not defined, set defaults based on relationType
     if (props.startMarker === undefined) {
-      props.startMarker = ['composition', 'aggregation', 'generalization'].includes(props.relationType)
+      props.startMarker = ['composition', 'aggregation'].includes(props.relationType)
     }
     
     if (props.endMarker === undefined) {
@@ -259,7 +274,11 @@
       y: p.y
     }
     panZoom.value.resize()
-    panZoom.value.center()
+    // Solo centrar en el primer render
+    if (!panZoom.value._hasCentered) {
+      panZoom.value.center()
+      panZoom.value._hasCentered = true
+    }
     panZoom.value.zoom(z)
     panZoom.value.panBy(pan)
   }
@@ -346,14 +365,45 @@
       panZoom.value.setOnUpdatedCTM((newCTM) => updateCTM(newCTM))
     })
     initialized = true
+
+    // Event listeners para teclado
+    const handleKeyPress = (e) => {
+      if (e.key === 'Escape' && store.connectionMode.active) {
+        console.log('ESC pressed, canceling connection')
+        store.cancelConnection()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyPress)
+    
+    // Configurar listener para actualizaciones de WebSocket
+    setupWebSocketListeners()
+    
+    // Exponer la función de creación de DBML globalmente
+    window.createDbmlRelationship = createDbmlRelationship
+  })
+
+  onBeforeUnmount(() => {
+    // Cleanup event listeners
+    const handleKeyPress = (e) => {
+      if (e.key === 'Escape' && store.connectionMode.active) {
+        store.cancelConnection()
+      }
+    }
+    document.removeEventListener('keydown', handleKeyPress)
+    
+    // Limpiar función global
+    if (window.createDbmlRelationship === createDbmlRelationship) {
+      delete window.createDbmlRelationship
+    }
   })
 
   watch(() => props.tables, () => {
-    panZoom.value.updateBBox()
+  panZoom.value.updateBBox()
   })
 
   watch(() => props.refs, () => {
-    panZoom.value.updateBBox()
+  panZoom.value.updateBBox()
   })
 
   watch(() => store.zoom, (newZoom) => {
@@ -390,6 +440,115 @@
     emit('dblclick:table-group', e, tableGroup);
   }
 
+  function onConnectionCompleted (connectionInfo) {
+    console.log('Connection completed in VDbChart:', connectionInfo);
+    
+    // Mostrar el diálogo para seleccionar el tipo de relación
+    if (window.showRelationshipCreationDialog) {
+      window.showRelationshipCreationDialog(connectionInfo);
+    } else {
+      console.error('Relationship creation dialog not available!');
+      // Fallback: crear relación básica
+      createDbmlRelationship({
+        type: 'association',
+        name: '',
+        source: connectionInfo.source,
+        target: connectionInfo.target
+      });
+    }
+  }
+
+  // Función para crear relación DBML automáticamente
+  function createDbmlRelationship(relationshipData) {
+    console.log('Creating DBML relationship:', relationshipData);
+    
+    const { type, name, source, target } = relationshipData;
+    
+    // Generar la sintaxis DBML para la nueva relación
+    const sourceRef = `${source.table.name}.${source.field.name}`;
+    const targetRef = `${target.table.name}.${target.field.name}`;
+    
+    // Determinar el tipo de relación DBML basado en el tipo UML
+    let dbmlRelationType = '>';
+    switch (type) {
+      case 'association':
+        dbmlRelationType = '-';
+        break;
+      case 'composition':
+        dbmlRelationType = '>';
+        break;
+      case 'aggregation':
+        dbmlRelationType = '<>';
+        break;
+      case 'generalization':
+        dbmlRelationType = '<';
+        break;
+    }
+    
+    // Construir la línea DBML
+    let dbmlLine = `Ref`;
+    if (name && name.trim()) {
+      dbmlLine += ` ${name.trim()}`;
+    }
+    dbmlLine += `: ${sourceRef} ${dbmlRelationType} ${targetRef}`;
+    
+    // Obtener el contenido actual del editor
+    const currentDbml = editorStore.source.text;
+    
+    // Añadir la nueva relación al final del DBML
+    const newDbml = currentDbml.trim() + '\n\n' + dbmlLine + '\n';
+    
+    console.log('Generated DBML line:', dbmlLine);
+    console.log('New DBML content:', newDbml);
+    
+    // Actualizar el editor con el nuevo contenido
+    editorStore.updateSourceText(newDbml);
+    
+    // Enviar actualización via WebSocket para sincronizar con otros usuarios
+    sendDiagramUpdate('relationship-created', {
+      relationshipData: relationshipData,
+      dbmlLine: dbmlLine,
+      newDbmlContent: newDbml,
+      sourceRef: sourceRef,
+      targetRef: targetRef,
+      timestamp: Date.now()
+    }).then(() => {
+      console.log('✅ Relationship creation synchronized with other users');
+    }).catch((error) => {
+      console.warn('⚠️ Failed to synchronize relationship creation:', error);
+    });
+    
+    // Mostrar mensaje de confirmación
+    alert(`✅ Relationship created!\n${sourceRef} ${dbmlRelationType} ${targetRef}`);
+    
+    // Cancelar el modo de conexión
+    store.cancelConnection();
+  }
+
+  // Configurar listeners de WebSocket para actualizaciones remotas
+  function setupWebSocketListeners() {
+    console.log('Setting up WebSocket listeners for relationship updates');
+    
+    onDiagramUpdate((data) => {
+      console.log('Received diagram update from WebSocket:', data);
+      
+      if (data.updateType === 'relationship-created') {
+        console.log('Processing remote relationship creation:', data.payload);
+        
+        // Actualizar el editor con el nuevo contenido DBML
+        if (data.payload.newDbmlContent) {
+          editorStore.updateSourceText(data.payload.newDbmlContent);
+          
+          // Mostrar notificación de que otro usuario creó una relación
+          console.log(`🔄 Remote user created relationship: ${data.payload.sourceRef} ${data.payload.dbmlLine.split(' ')[2]} ${data.payload.targetRef}`);
+          
+          // Opcional: mostrar toast o notificación visual
+          // En lugar de alert (que es intrusivo), usar console.log por ahora
+        }
+      }
+    });
+  }
+
   function onRefMouseEnter (e) {
     e.target.parentElement.appendChild(e.target)
   }
@@ -423,4 +582,39 @@
     lastClick = nowClick;
   }
 
+  // Función de prueba para activar modo de conexión (temporal)
+  const startConnectionTest = () => {
+    // Para prueba, crearemos un campo fake
+    const testField = { id: 1, name: 'test_field' }
+    const testTable = { id: 1, name: 'test_table', fields: [testField] }
+    store.startConnection(testField, testTable)
+    console.log('Connection mode activated! Use ESC to cancel.')
+  }
+
+  // Exponer funciones de prueba en desarrollo
+  if (process.env.NODE_ENV === 'development') {
+    window.startConnectionTest = startConnectionTest
+    window.chartStore = store
+  }
+
 </script>
+
+<style scoped>
+.db-chart--connection-mode {
+  cursor: crosshair;
+}
+
+.db-chart--connection-mode .db-field {
+  cursor: crosshair;
+}
+</style>
+
+<style scoped>
+.db-chart--connection-mode {
+  cursor: crosshair !important;
+}
+
+.db-chart--connection-mode * {
+  cursor: crosshair !important;
+}
+</style>
