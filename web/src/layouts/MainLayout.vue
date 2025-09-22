@@ -9,8 +9,33 @@
         </q-toolbar-title>
         <router-view name="toolbar"/>
         <connected-users />
+        <!-- Chat Toggle Button -->
+        <q-btn 
+          flat 
+          round 
+          icon="chat"
+          size="sm"
+          @click="toggleRightDrawer"
+          :color="rightDrawerOpen ? 'primary' : 'white'"
+          class="q-ml-sm"
+        >
+          <q-tooltip>AI Assistant</q-tooltip>
+        </q-btn>
       </q-toolbar>
     </q-header>
+
+    <!-- Right Drawer for Chat Panel -->
+    <q-drawer
+      v-model="rightDrawerOpen"
+      side="right"
+      overlay
+      :width="400"
+      :breakpoint="768"
+      class="bg-dark"
+    >
+      <chat-panel />
+    </q-drawer>
+
     <q-page-container>
       <router-view/>
     </q-page-container>
@@ -40,6 +65,7 @@
   import ConnectedUsers from 'src/components/ConnectedUsers.vue'
   import RelationshipTypeDialog from 'src/components/RelationshipTypeDialog.vue'
   import RelationshipCreationDialog from 'src/components/RelationshipCreationDialog.vue'
+  import ChatPanel from 'src/components/ChatPanel.vue'
   import { useChartStore } from 'src/store/chart'
 
   export default defineComponent({
@@ -48,12 +74,14 @@
     components: {
       ConnectedUsers,
       RelationshipTypeDialog,
-      RelationshipCreationDialog
+      RelationshipCreationDialog,
+      ChatPanel
     },
 
     setup () {
       const chartStore = useChartStore()
       const leftDrawerOpen = ref(false)
+      const rightDrawerOpen = ref(false)
       const showRelationshipDialog = ref(false)
       const relationshipDialogData = ref({
         refId: null,
@@ -110,6 +138,7 @@
 
       return {
         leftDrawerOpen,
+        rightDrawerOpen,
         showRelationshipDialog,
         relationshipDialogData,
         showRelationshipCreationDialog,
@@ -119,6 +148,9 @@
         onRelationshipCreationCancel,
         toggleLeftDrawer () {
           leftDrawerOpen.value = !leftDrawerOpen.value
+        },
+        toggleRightDrawer () {
+          rightDrawerOpen.value = !rightDrawerOpen.value
         }
       }
     }
