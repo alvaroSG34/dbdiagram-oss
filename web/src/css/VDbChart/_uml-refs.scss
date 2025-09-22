@@ -2,7 +2,7 @@
   &__path {
     fill: none;
     stroke: var(--ref-color);
-    stroke-width: 2;
+    stroke-width: 6;
     stroke-linejoin: round;
     stroke-linecap: butt;
   }
@@ -48,7 +48,7 @@
     
     path {
       stroke: var(--ref-color);
-      stroke-width: 2;
+      stroke-width: 5;
     }
   }
   
@@ -60,7 +60,7 @@
   &__association {
     &__marker-association-end path {
       stroke: var(--ref-color);
-      stroke-width: 2;
+      stroke-width: 5;
     }
   }
 
@@ -69,10 +69,11 @@
     &__marker-composition-start path {
       fill: black;
       stroke: var(--ref-color);
+      stroke-width: 5;
     }
     &__marker-composition-end path {
       stroke: var(--ref-color);
-      stroke-width: 2;
+      stroke-width: 5;
     }
   }
 
@@ -81,10 +82,11 @@
     &__marker-aggregation-start path {
       fill: white;
       stroke: var(--ref-color);
+      stroke-width: 5;
     }
     &__marker-aggregation-end path {
       stroke: var(--ref-color);
-      stroke-width: 2;
+      stroke-width: 5;
     }
   }
 
@@ -94,6 +96,7 @@
     &__marker-generalization-end path {
       fill: white;
       stroke: var(--ref-color);
+      stroke-width: 5;
     }
   }
 }
