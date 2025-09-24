@@ -6,6 +6,7 @@ require('dotenv').config();
 
 // Importar rutas
 const authRoutes = require('./routes/auth');
+const roomRoutes = require('./routes/rooms');
 
 // Importar configuración de base de datos para probar conexión
 const db = require('./config/database');
@@ -117,6 +118,9 @@ app.get('/api/health', async (req, res) => {
 // Auth routes con rate limiting
 app.use('/api/auth', authLimiter, authRoutes);
 
+// Room routes con rate limiting general
+app.use('/api/rooms', generalLimiter, roomRoutes);
+
 // ================================================
 // ERROR HANDLING
 // ================================================
@@ -132,7 +136,15 @@ app.use('*', (req, res) => {
       'POST /api/auth/login',
       'GET /api/auth/profile',
       'POST /api/auth/verify',
-      'PUT /api/auth/profile'
+      'PUT /api/auth/profile',
+      'POST /api/rooms',
+      'POST /api/rooms/join',
+      'GET /api/rooms',
+      'GET /api/rooms/:room_code',
+      'PUT /api/rooms/:room_code/content',
+      'DELETE /api/rooms/:room_code/leave',
+      'DELETE /api/rooms/:room_code',
+      'GET /api/rooms/:room_code/members'
     ]
   });
 });
