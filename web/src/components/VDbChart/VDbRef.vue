@@ -152,48 +152,23 @@
     const startElAnchors = startAnchors.value
     const endElAnchors = endAnchors.value
 
+    // Para líneas rectas: sin puntos intermedios, conexión directa
     if (!s.vertices.length || s.vertices.some(v => Number.isNaN(v.x) || Number.isNaN(v.y))) {
       s.auto = true
-    } else if (!s.auto) {
-      return
+      // No necesitamos puntos intermedios para líneas rectas
+      s.vertices = []
     }
-
-    const [start, end] = getClosest(startElAnchors, endElAnchors)
-    console.log('updateControlPoints', start, end, startElAnchors, endElAnchors)
-
-    const minX = Math.min(start.x, end.x)
-    const minY = Math.min(start.y, end.y)
-    const maxX = Math.max(start.x, end.x)
-    const maxY = Math.max(start.y, end.y)
-    const midX = (minX + (((maxX - minX) || 2) / 2))
-    const midY = (minY + (((maxY - minY) || 2) / 2))
-    const mid = {
-      x: midX,
-      y: midY
-    }
-
-    s.vertices = [
-      {
-        x: mid.x,
-        y: start.y
-      },
-      {
-        x: mid.x,
-        y: end.y
-      }
-    ]
   }
 
   const path = computed(() => {
     const startElAnchors = startAnchors.value
     const endElAnchors = endAnchors.value
 
-    const points = s.vertices
-    if (points.length == 0 || points.some(p => Number.isNaN(p.x) || Number.isNaN(p.y))) return ``
-    const start = getClosestAnchor(points[0], startElAnchors)
-    const end = getClosestAnchor(points[points.length - 1], endElAnchors)
-
-    return `M ${start.x},${start.y} L ${points.map(p => (`${p.x},${p.y}`)).join(' ')} L ${end.x} ${end.y}`
+    // Para líneas rectas: conexión directa entre los puntos más cercanos
+    const [start, end] = getClosest(startElAnchors, endElAnchors)
+    
+    // Línea recta directa sin puntos intermedios
+    return `M ${start.x},${start.y} L ${end.x},${end.y}`
   })
 
   const onMouseEnter = (e) => {

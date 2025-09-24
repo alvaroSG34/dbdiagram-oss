@@ -96,6 +96,30 @@
         Import
       </template>
     </q-btn-dropdown>
+
+    <!-- Relationship Legend Toggle -->
+    <q-btn
+      padding="xs sm"
+      size="md"
+      color="secondary"
+      class="q-mx-xs"
+      @click="toggleLegend"
+    >
+      <q-icon
+        class="q-mr-sm"
+        size="xs"
+        name="info_outline"/>
+      Legend
+      
+      <q-popup-proxy
+        v-model="showLegend"
+        anchor="bottom left"
+        self="top left"
+        :offset="[0, 8]"
+      >
+        <relationship-legend @close="showLegend = false" />
+      </q-popup-proxy>
+    </q-btn>
   </div>
 
   <q-space/>
@@ -137,11 +161,14 @@
   import { useEditorStore } from 'src/store/editor'
   import { useQuasar } from 'quasar'
   import PreferencesDialog from '../../components/PreferencesDialog'
+  import RelationshipLegend from '../../components/RelationshipLegend'
   import { useFilesStore } from '../../store/files'
 
   const editor = useEditorStore()
   const files = useFilesStore()
   const $q = useQuasar()
+
+  const showLegend = ref(false)
 
   const exportOptions = ref([
     {

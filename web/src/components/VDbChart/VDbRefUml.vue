@@ -212,79 +212,53 @@
     const startElAnchors = startAnchors.value
     const endElAnchors = endAnchors.value
 
-    // Solo recalcular si no hay puntos válidos
+    // Para líneas rectas: sin puntos intermedios, conexión directa
     if (!s.vertices.length || s.vertices.some(v => Number.isNaN(v.x) || Number.isNaN(v.y))) {
       s.auto = true
-      const [start, end] = getClosest(startElAnchors, endElAnchors)
-      const minX = Math.min(start.x, end.x)
-      const minY = Math.min(start.y, end.y)
-      const maxX = Math.max(start.x, end.x)
-      const maxY = Math.max(start.y, end.y)
-      const midX = (minX + (((maxX - minX) || 2) / 2))
-      const midY = (minY + (((maxY - minY) || 2) / 2))
-      const mid = {
-        x: midX,
-        y: midY
-      }
-      s.vertices = [
-        {
-          x: mid.x,
-          y: start.y
-        },
-        {
-          x: mid.x,
-          y: end.y
-        }
-      ]
-    } // Si ya existen y son válidos, no modificar s.vertices
+      // No necesitamos puntos intermedios para líneas rectas
+      s.vertices = []
+    }
   }
 
   const path = computed(() => {
     const startElAnchors = startAnchors.value
     const endElAnchors = endAnchors.value
 
-    const points = s.vertices
-    if (points.length == 0 || points.some(p => Number.isNaN(p.x) || Number.isNaN(p.y))) return ``
-    const start = getClosestAnchor(points[0], startElAnchors)
-    const end = getClosestAnchor(points[points.length - 1], endElAnchors)
-
-    return `M ${start.x},${start.y} L ${points.map(p => (`${p.x},${p.y}`)).join(' ')} L ${end.x} ${end.y}`
+    // Para líneas rectas: conexión directa entre los puntos más cercanos
+    const [start, end] = getClosest(startElAnchors, endElAnchors)
+    
+    // Línea recta directa sin puntos intermedios
+    return `M ${start.x},${start.y} L ${end.x},${end.y}`
   })
 
-  // Calculate marker positions and rotation angles
+  // Calculate marker positions and rotation angles for straight lines
   const startMarkerPosition = computed(() => {
     const startElAnchors = startAnchors.value
-    const points = s.vertices
-    if (points.length === 0 || points.some(p => Number.isNaN(p.x) || Number.isNaN(p.y))) return { x: 0, y: 0 }
-    
-    return getClosestAnchor(points[0], startElAnchors)
+    const endElAnchors = endAnchors.value
+    const [start, end] = getClosest(startElAnchors, endElAnchors)
+    return start
   })
 
   const endMarkerPosition = computed(() => {
+    const startElAnchors = startAnchors.value
     const endElAnchors = endAnchors.value
-    const points = s.vertices
-    if (points.length === 0 || points.some(p => Number.isNaN(p.x) || Number.isNaN(p.y))) return { x: 0, y: 0 }
-    
-    return getClosestAnchor(points[points.length - 1], endElAnchors)
+    const [start, end] = getClosest(startElAnchors, endElAnchors)
+    return end
   })
 
   const startMarkerRotation = computed(() => {
     const startPos = startMarkerPosition.value
-    const points = s.vertices
-    if (points.length === 0) return 0
+    const endPos = endMarkerPosition.value
     
-    const firstPoint = points[0]
-    const angle = Math.atan2(firstPoint.y - startPos.y, firstPoint.x - startPos.x) * 180 / Math.PI
+    const angle = Math.atan2(endPos.y - startPos.y, endPos.x - startPos.x) * 180 / Math.PI
     return angle
   })
 
   const endMarkerRotation = computed(() => {
+    const startPos = startMarkerPosition.value
     const endPos = endMarkerPosition.value
-    const points = s.vertices
-    if (points.length === 0) return 0
     
-    const lastPoint = points[points.length - 1]
-    const angle = Math.atan2(endPos.y - lastPoint.y, endPos.x - lastPoint.x) * 180 / Math.PI
+    const angle = Math.atan2(startPos.y - endPos.y, startPos.x - endPos.x) * 180 / Math.PI
     return angle
   })
 

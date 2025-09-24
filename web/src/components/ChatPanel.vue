@@ -13,6 +13,22 @@
         >
           {{ providerInfo.current }}
         </q-chip>
+        
+        <!-- Context indicator -->
+        <q-chip 
+          v-if="currentSchemaInfo.hasSchema" 
+          dense 
+          outline
+          color="info" 
+          class="q-ml-sm"
+          size="sm"
+        >
+          <q-icon name="visibility" size="12px" class="q-mr-xs" />
+          {{ currentSchemaInfo.tables.length }} table{{ currentSchemaInfo.tables.length !== 1 ? 's' : '' }}
+          <q-tooltip class="text-caption">
+            {{ currentSchemaInfo.summary }}
+          </q-tooltip>
+        </q-chip>
       </div>
       
       <div class="chat-actions">
@@ -307,15 +323,35 @@ const providerInfo = ref({
   hasApiKey: false
 })
 
-// Sugerencias rápidas
-const suggestions = ref([
-  'Create tables for users, roles, and permissions',
-  'Design an e-commerce database with products, orders, and customers',
-  'Create a blog schema with posts, comments, and authors',
-  'Design a school management system database',
-  'Create tables for a task management application',
-  'Design a social media platform database'
-])
+// Sugerencias rápidas (computadas dinámicamente)
+const suggestions = computed(() => {
+  const currentDbml = editorStore.source.text || ''
+  const hasExistingSchema = currentDbml.trim().length > 0
+  
+  if (hasExistingSchema) {
+    // Extract existing table names for context-aware suggestions
+    const tableMatches = currentDbml.match(/Table\s+(\w+)\s*{/g) || []
+    const existingTables = tableMatches.map(match => match.replace(/Table\s+(\w+)\s*{/, '$1')).join(', ')
+    
+    return [
+      'Add a tickets table with relation to users',
+      'Create audit logs for existing tables',
+      'Add a categories table and link it to products',
+      'Create a notifications system',
+      'Add a comments table for posts or products',
+      'Create invoice and payment tables'
+    ]
+  } else {
+    return [
+      'Create tables for users, roles, and permissions',
+      'Design an e-commerce database with products, orders, and customers',
+      'Create a blog schema with posts, comments, and authors',
+      'Design a school management system database',
+      'Create tables for a task management application',
+      'Design a social media platform database'
+    ]
+  }
+})
 
 // Proveedores disponibles
 const availableProviders = [
@@ -326,6 +362,32 @@ const availableProviders = [
 
 // Computadas
 const hasMessages = computed(() => messages.value.length > 0)
+
+// Análisis del esquema actual
+const currentSchemaInfo = computed(() => {
+  const currentDbml = editorStore.source.text || ''
+  if (!currentDbml.trim()) {
+    return { hasSchema: false, tables: [], summary: '' }
+  }
+  
+  // Extract table names
+  const tableMatches = currentDbml.match(/Table\s+(\w+)\s*{/g) || []
+  const tables = tableMatches.map(match => match.replace(/Table\s+(\w+)\s*{/, '$1'))
+  
+  // Extract references
+  const refMatches = currentDbml.match(/Ref:\s*[\w.]+\s*>\s*[\w.]+/g) || []
+  
+  const summary = tables.length > 0 
+    ? `Current schema has ${tables.length} table${tables.length > 1 ? 's' : ''}: ${tables.join(', ')}${refMatches.length > 0 ? ` with ${refMatches.length} relationship${refMatches.length > 1 ? 's' : ''}` : ''}`
+    : 'No schema found'
+    
+  return {
+    hasSchema: true,
+    tables,
+    references: refMatches,
+    summary
+  }
+})
 
 // Métodos principales
 const sendMessage = async () => {
@@ -402,7 +464,27 @@ const generateDbml = async (prompt) => {
 const generateDbmlWithProvider = async (prompt, provider = selectedProvider.value) => {
   console.log('generateDbmlWithProvider called with:', { prompt, provider, selectedProviderValue: selectedProvider.value })
   
-  const systemPrompt = `Eres un arquitecto de bases de datos experto especializado en generar código DBML válido y bien estructurado.
+  // Get current DBML from editor
+  const currentDbml = editorStore.source.text || ''
+  const hasExistingSchema = currentDbml.trim().length > 0
+  
+  let systemPrompt = `Eres un arquitecto de bases de datos experto especializado en generar código DBML válido y bien estructurado.
+
+CONTEXTO IMPORTANTE:
+${hasExistingSchema ? 
+  `El usuario ya tiene un esquema DBML existente. NO repitas tablas que ya existen. Solo genera las NUEVAS tablas y relaciones solicitadas.
+
+ESQUEMA ACTUAL:
+${currentDbml}
+
+INSTRUCCIONES ESPECÍFICAS:
+- NO repitas ninguna tabla que ya existe en el esquema actual
+- Solo genera nuevas tablas solicitadas
+- Para relaciones, usa las tablas existentes como referencia
+- Mantén la consistencia con los nombres y tipos de datos existentes` 
+  : 
+  'El usuario está empezando un esquema nuevo desde cero.'
+}
 
 REGLAS OBLIGATORIAS:
 1. Genera SOLO código DBML válido, sin explicaciones adicionales
@@ -412,6 +494,7 @@ REGLAS OBLIGATORIAS:
 5. Las referencias (Ref) deben ir FUERA de las tablas, no dentro
 6. Usa formato: Ref: tabla1.campo > tabla2.campo
 7. Para relaciones many-to-many, crea tablas intermedias
+8. ${hasExistingSchema ? 'IMPORTANTE: NO repitas tablas existentes, solo crea las nuevas solicitadas' : 'Crea un esquema completo basado en la solicitud'}
 
 FORMATO CORRECTO:
 Table users {
@@ -839,11 +922,17 @@ const clearChat = () => {
   messages.value = []
   showSuggestions.value = true
   
-  // Add welcome message
+  // Check if there's existing DBML code
+  const currentDbml = editorStore.source.text || ''
+  const hasExistingSchema = currentDbml.trim().length > 0
+  
+  // Add context-aware welcome message
   const welcomeMessage = {
     id: Date.now(),
     type: 'assistant',
-    content: 'Hello! I can help you generate database schemas using DBML. Describe what tables and relationships you need, and I\'ll create the code for you.',
+    content: hasExistingSchema 
+      ? 'Hello! I can see you already have a database schema in the editor. I\'ll analyze your existing tables and only create the new ones you request. Just tell me what you want to add or modify!'
+      : 'Hello! I can help you generate database schemas using DBML. Describe what tables and relationships you need, and I\'ll create the code for you.',
     timestamp: new Date()
   }
   

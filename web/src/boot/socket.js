@@ -1,7 +1,8 @@
 import { io } from 'socket.io-client';
 import { boot } from 'quasar/wrappers';
+import { getSocketUrl } from '../config/socket.config.js';
 
-const socket = io('http://localhost:3001');
+const socket = io(getSocketUrl());
 let currentProjectId = null;
 
 // Exportar la instancia del socket para que se pueda usar directamente

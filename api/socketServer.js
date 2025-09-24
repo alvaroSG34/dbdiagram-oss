@@ -117,7 +117,21 @@ io.on('connection', (socket) => {
   });
 });
 
-// Iniciar el servidor en el puerto 3001
-server.listen(3001, () => {
-  console.log('Servidor WebSocket ejecutándose en http://localhost:3001');
+// Iniciar el servidor en el puerto 3001, aceptando conexiones de cualquier IP
+server.listen(3001, '0.0.0.0', () => {
+  console.log('Servidor WebSocket ejecutándose en http://0.0.0.0:3001');
+  console.log('Accesible desde la red local en: http://<TU-IP-LOCAL>:3001');
+  
+  // Mostrar IP local para facilitar la configuración
+  const os = require('os');
+  const networkInterfaces = os.networkInterfaces();
+  console.log('\n--- IPs disponibles ---');
+  Object.keys(networkInterfaces).forEach(interface => {
+    networkInterfaces[interface].forEach(network => {
+      if (network.family === 'IPv4' && !network.internal) {
+        console.log(`${interface}: ${network.address}`);
+      }
+    });
+  });
+  console.log('----------------------\n');
 });

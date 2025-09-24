@@ -44,59 +44,108 @@
   }
 
   &__marker {
-    opacity: 0.9;
+    opacity: 1;
     
     path {
       stroke: var(--ref-color);
-      stroke-width: 5;
+      stroke-width: 2;
+      fill: var(--ref-color);
     }
   }
   
   &__highlight &__marker path {
     stroke: var(--ref-highlight-color);
+    fill: var(--ref-highlight-color);
   }
 
-  // Association
+  // One-to-Many (default) - Blue color
+  &__one-to-many,
   &__association {
+    .db-ref__path {
+      stroke: #2196F3; // Blue for one-to-many
+    }
+    
     &__marker-association-end path {
-      stroke: var(--ref-color);
-      stroke-width: 5;
+      stroke: #2196F3;
+      fill: #2196F3;
+      stroke-width: 2;
     }
   }
 
-  // Composition
+  // Many-to-Many - Green color  
+  &__many-to-many {
+    .db-ref__path {
+      stroke: #4CAF50; // Green for many-to-many
+      stroke-dasharray: 5, 5; // Dashed line to differentiate
+    }
+    
+    path {
+      stroke: #4CAF50;
+      fill: #4CAF50;
+    }
+  }
+
+  // One-to-One - Purple color
+  &__one-to-one {
+    .db-ref__path {
+      stroke: #9C27B0; // Purple for one-to-one
+      stroke-width: 3; // Slightly thinner
+    }
+    
+    path {
+      stroke: #9C27B0;
+      fill: #9C27B0;
+    }
+  }
+
+  // Composition - Dark red/black
   &__composition {
+    .db-ref__path {
+      stroke: #D32F2F; // Dark red for composition
+    }
+    
     &__marker-composition-start path {
-      fill: black;
-      stroke: var(--ref-color);
-      stroke-width: 5;
+      fill: #D32F2F;
+      stroke: #D32F2F;
+      stroke-width: 2;
     }
     &__marker-composition-end path {
-      stroke: var(--ref-color);
-      stroke-width: 5;
+      stroke: #D32F2F;
+      fill: #D32F2F;
+      stroke-width: 2;
     }
   }
 
-  // Aggregation
+  // Aggregation - Orange
   &__aggregation {
+    .db-ref__path {
+      stroke: #FF9800; // Orange for aggregation
+    }
+    
     &__marker-aggregation-start path {
       fill: white;
-      stroke: var(--ref-color);
-      stroke-width: 5;
+      stroke: #FF9800;
+      stroke-width: 2;
     }
     &__marker-aggregation-end path {
-      stroke: var(--ref-color);
-      stroke-width: 5;
+      stroke: #FF9800;
+      fill: #FF9800;
+      stroke-width: 2;
     }
   }
 
-  // Generalization (inheritance)
+  // Generalization (inheritance) - Teal
   &__generalization {
+    .db-ref__path {
+      stroke: #009688; // Teal for inheritance
+      stroke-width: 3;
+    }
+    
     &__marker-generalization-start path,
     &__marker-generalization-end path {
       fill: white;
-      stroke: var(--ref-color);
-      stroke-width: 5;
+      stroke: #009688;
+      stroke-width: 2;
     }
   }
 }
