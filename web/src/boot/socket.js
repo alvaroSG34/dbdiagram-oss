@@ -11,7 +11,6 @@ export { socket };
 // Estado de conexión
 let isConnected = false;
 socket.on('connect', () => {
-  console.log('Conectado al servidor WebSocket');
   isConnected = true;
 
   // Si estábamos en un proyecto antes de reconectar, volvemos a unirnos
@@ -21,7 +20,6 @@ socket.on('connect', () => {
 });
 
 socket.on('disconnect', () => {
-  console.log('Desconectado del servidor WebSocket');
   isConnected = false;
 });
 
@@ -32,7 +30,6 @@ function joinProject(projectId) {
   currentProjectId = projectId;
   if (isConnected) {
     socket.emit('join-project', projectId);
-    console.log(`Unido al proyecto: ${projectId}`);
   }
 }
 
@@ -42,12 +39,8 @@ function sendDiagramUpdate(updateType, payload) {
     console.warn('No hay un proyecto activo, no se puede enviar la actualización');
     return;
   }
-
-  console.log(`Enviando actualización [${updateType}]:`, payload);
-  
-  // For relation-type-update, apply the change locally as well
-  if (updateType === 'relation-type-update') {
-    console.log('Applying relation type update locally for immediate feedback');
+  // For relationship-type-update, apply the change locally as well
+  if (updateType === 'relationship-type-update') {
     // Local update will be handled by the component directly
   }
   
@@ -60,7 +53,6 @@ function sendDiagramUpdate(updateType, payload) {
   // Agregar confirmación de envío (opcional)
   return new Promise((resolve) => {
     setTimeout(() => {
-      console.log(`Actualización [${updateType}] enviada correctamente`);
       resolve();
     }, 50);
   });

@@ -17,7 +17,6 @@ export class InlineAnnotation {
   }
 
   update() {
-    console.log("update", this);
     const range = Range.fromPoints(this.startAnchor.getPosition(), this.endAnchor.getPosition());
     if (this.marker) {
       this.session.removeMarker(this.marker);

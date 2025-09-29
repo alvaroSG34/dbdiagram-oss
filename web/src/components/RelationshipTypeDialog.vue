@@ -142,18 +142,20 @@ const confirm = () => {
         }
         return line;
       }).join('\n');
+    // Deshabilitar actualizaciones de BBox mientras se actualiza la relación
+    if (window.disableBBoxUpdates) {
+      window.disableBBoxUpdates();
+    }
+    
     editorStore.updateSourceText(dbml);
     setTimeout(() => {
       if (window && window.refreshDbmlGraph) window.refreshDbmlGraph();
     }, 100);
-    console.log('DBML después:', dbml);
   } catch (e) {
-    console.warn('No se pudo actualizar el comentario en el editor DBML:', e);
   }
 
   // Refrescar el diagrama
   if (window.refreshDbmlGraph) {
-    console.log("Triggering graph refresh");
     window.refreshDbmlGraph();
   }
 

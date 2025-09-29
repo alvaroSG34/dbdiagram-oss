@@ -90,12 +90,25 @@ export const useChartStore = defineStore("chart", {
             auto: true,
             relationType: 'association', // Default relationship type
             startMarker: false,         // Whether to show marker at start 
-            endMarker: true             // Whether to show marker at end (true for all types)
+            endMarker: true,            // Whether to show marker at end (true for all types)
+            startCardinality: '',       // Cardinality at start (e.g., '1', '0..1', '1..*', '*')
+            endCardinality: '',         // Cardinality at end (e.g., '1', '0..1', '1..*', '*')
+            relationshipName: ''        // Name of the relationship (e.g., 'Realiza', 'Contiene')
           };
         }
         // Make sure the relationship type is always defined
         if (!state.refs[refId].relationType) {
           state.refs[refId].relationType = 'association';
+        }
+        // Make sure cardinality properties are always defined
+        if (state.refs[refId].startCardinality === undefined) {
+          state.refs[refId].startCardinality = '';
+        }
+        if (state.refs[refId].endCardinality === undefined) {
+          state.refs[refId].endCardinality = '';
+        }
+        if (state.refs[refId].relationshipName === undefined) {
+          state.refs[refId].relationshipName = '';
         }
         return state.refs[refId];
       };
@@ -143,37 +156,58 @@ export const useChartStore = defineStore("chart", {
       };
     },
     loadDatabase(database) {
-      for(const tableGroup of database.schemas[0].tableGroups)
+      // Add defensive checks for undefined database or schema
+      if (!database || !database.schemas || !database.schemas[0]) {
+        console.warn('⚠️ Database or schema is undefined, skipping loadDatabase');
+        return;
+      }
+      
+      const schema = database.schemas[0];
+      
+      // Safe access to tableGroups with fallback
+      const tableGroups = schema.tableGroups || [];
+      for(const tableGroup of tableGroups)
       {
         this.getTableGroup(tableGroup.id);
       }
-      for(const table of database.schemas[0].tables)
+      
+      // Safe access to tables with fallback  
+      const tables = schema.tables || [];
+      for(const table of tables)
       {
         this.getTable(table.id);
       }
       
-      // Save existing relationship types before updating from the database
+      // Save existing relationship types and cardinalities before updating from the database
       const existingRefTypes = {};
       for(const refId in this.refs) {
         if(this.refs[refId].relationType) {
           existingRefTypes[refId] = {
             relationType: this.refs[refId].relationType,
             startMarker: this.refs[refId].startMarker,
-            endMarker: this.refs[refId].endMarker
+            endMarker: this.refs[refId].endMarker,
+            startCardinality: this.refs[refId].startCardinality,
+            endCardinality: this.refs[refId].endCardinality,
+            relationshipName: this.refs[refId].relationshipName
           };
         }
       }
       
       // Update refs from the database but preserve relationship types
-      for(const ref of database.schemas[0].refs)
+      // Safe access to refs with fallback
+      const refs = schema.refs || [];
+      for(const ref of refs)
       {
         const currentRef = this.getRef(ref.id);
         
-        // Preserve existing relationship type if available
+        // Preserve existing relationship type and cardinalities if available
         if(existingRefTypes[ref.id]) {
           currentRef.relationType = existingRefTypes[ref.id].relationType;
           currentRef.startMarker = existingRefTypes[ref.id].startMarker;
           currentRef.endMarker = existingRefTypes[ref.id].endMarker;
+          currentRef.startCardinality = existingRefTypes[ref.id].startCardinality;
+          currentRef.endCardinality = existingRefTypes[ref.id].endCardinality;
+          currentRef.relationshipName = existingRefTypes[ref.id].relationshipName;
         }
       }
 
@@ -221,9 +255,6 @@ export const useChartStore = defineStore("chart", {
     updateRef(refId, newRef) {
       const prevPan = { ...this.pan };
       const prevZoom = this.zoom;
-      console.log(`Chart store: Updating ref ${refId} from`, 
-                  JSON.stringify(this.refs[refId]),
-                  'to', JSON.stringify(newRef));
       // Direct assignment since refs is an object, not a state property with $patch
       this.refs[refId] = newRef;
       // Force reactivity by using $patch on the parent with a fresh object
@@ -232,14 +263,10 @@ export const useChartStore = defineStore("chart", {
         pan: prevPan,
         zoom: prevZoom
       });
-      console.log(`Chart store: After update, ref ${refId} is now:`, 
-                  JSON.stringify(this.refs[refId]));
-    },
+      },
 
     // Acciones para el modo de conexión visual
     startConnection(field, table) {
-      console.log('Starting connection from field:', field, 'in table:', table);
-      
       this.connectionMode = {
         active: true,
         sourceField: field,
@@ -263,7 +290,6 @@ export const useChartStore = defineStore("chart", {
     },
 
     cancelConnection() {
-      console.log('Canceling connection');
       this.connectionMode = {
         active: false,
         sourceField: null,
@@ -290,9 +316,6 @@ export const useChartStore = defineStore("chart", {
         field: targetField,
         table: targetTable
       };
-      
-      console.log('Completing connection from', sourceInfo, 'to', targetInfo);
-      
       // Cancelar el modo de conexión
       this.cancelConnection();
       

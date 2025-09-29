@@ -1,6 +1,6 @@
 <template>
   <div class="dbml-graph-wrapper">
-    <v-db-chart v-if="schema && chart.loaded"
+    <v-db-chart v-if="schema && schema.tables && chart.loaded"
                 v-bind="schema"
                 @dblclick:table-group="locateInEditor"
                 @dblclick:table="locateInEditor"
@@ -34,6 +34,16 @@
             @click="applyScaleToFit">
             fit
           </q-btn>
+          <q-btn
+            class="q-mx-xs q-px-md"
+            color="primary"
+            dense
+            @click="centerView"
+            icon="center_focus_strong"
+            :title="'Reset zoom to 100% and center view on tables'"
+          >
+            Center
+          </q-btn>
           <q-space/>
 
           <q-slider
@@ -56,7 +66,7 @@
 
 <script setup>
   import { useEditorStore } from '../store/editor'
-  import { computed, onMounted, ref, watch, nextTick } from 'vue'
+  import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue'
   import VDbChart from './VDbChart/VDbChart'
   import { useChartStore } from '../store/chart'
   import VDbStructure from './VDbStructure'
@@ -65,7 +75,12 @@
   const props = defineProps({
     schema: {
       type: Object,
-      required: true
+      required: false, // Changed from true to false to handle undefined cases
+      default: () => ({
+        tableGroups: [],
+        tables: [],
+        refs: []
+      })
     }
   })
 
@@ -76,7 +91,6 @@
   const chart = useChartStore()
 
   const locateInEditor = (e, thing) => {
-    console.log("locateInEditor", e, thing);
     if (thing) {
       const token = thing.token
       editor.updateSelectionMarker(token.start, token.end)
@@ -103,134 +117,240 @@
     // do nothing
   }
 
-  // Escuchar actualizaciones de posición de tablas y grupos
-  onMounted(() => {
-    // Unirse al mismo proyecto que el editor
-    const projectId = 'default-project';
-    joinProject(projectId);
-    console.log("DbmlGraph: Unido al proyecto", projectId);
+  const centerView = () => {
     
-    // Escuchar actualizaciones del diagrama
-    onDiagramUpdate((data) => {
-      console.log("DbmlGraph: Recibida actualización", data);
+    if (window.centerViewOnTables) {
+      window.centerViewOnTables()
+    } else {
+    }
+  }
+
+  // Función para detectar si estamos en modo sala
+  const isRoomMode = () => {
+    return window.location.pathname.includes('/room/') || window.location.href.includes('/room/')
+  }
+
+  // Función para manejar actualizaciones de posición de tabla
+  const handleTablePositionUpdate = (data) => {
+    if (data.updateType === 'table-position-update' && data.payload && data.payload.tableId && data.payload.position) {
+      const { tableId, position } = data.payload;
       
+      // Verificar que tenemos posiciones válidas
+      if (typeof position.x !== 'number' || typeof position.y !== 'number') {
+        return;
+      }
+      
+      // Actualizar en el store de chart
       try {
-        if (data.updateType === 'table-position-update' && data.payload && data.payload.tableId && data.payload.position) {
-          // Actualizar la posición de una tabla
-          const { tableId, position } = data.payload;
+        const tableStore = chart.getTable(tableId);
+        if (tableStore) {
+          tableStore.x = position.x;
+          tableStore.y = position.y;
           
-          // Verificar que tenemos posiciones válidas
-          if (typeof position.x !== 'number' || typeof position.y !== 'number') {
-            console.error("Posición inválida recibida:", position);
-            return;
-          }
-          
-          // Actualizar en el store de chart
-          try {
-            const tableStore = chart.getTable(tableId);
-            if (tableStore) {
-              console.log("Actualizando posición de tabla en store:", tableId, position);
-              tableStore.x = position.x;
-              tableStore.y = position.y;
-            }
-          } catch (error) {
-            console.error("Error al actualizar tabla en store:", error);
-          }
-          
-          // También actualizar en el schema si está disponible
-          try {
-            if (props.schema && props.schema.tables && Array.isArray(props.schema.tables)) {
-              const table = props.schema.tables.find(t => t && t.id === tableId);
-              if (table) {
-                console.log("Actualizando posición de tabla en schema:", tableId, position);
-                if (!table.position) table.position = {};
-                table.position.x = position.x;
-                table.position.y = position.y;
-              }
-            }
-          } catch (error) {
-            console.error("Error al actualizar tabla en schema:", error);
-          }
-        } else if (data.updateType === 'tablegroup-position-update' && data.payload && data.payload.groupId && data.payload.position) {
-          // Actualizar la posición de un grupo de tablas
-          const { groupId, position } = data.payload;
-          
-          // Verificar que tenemos posiciones válidas
-          if (typeof position.x !== 'number' || typeof position.y !== 'number') {
-            console.error("Posición inválida recibida:", position);
-            return;
-          }
-          
-          // Actualizar en el store de chart
-          try {
-            const groupStore = chart.getTableGroup(groupId);
-            if (groupStore) {
-              console.log("Actualizando posición de grupo en store:", groupId, position);
-              groupStore.x = position.x;
-              groupStore.y = position.y;
-            }
-          } catch (error) {
-            console.error("Error al actualizar grupo en store:", error);
-          }
-          
-          // También actualizar en el schema si está disponible
-          try {
-            if (props.schema && props.schema.tableGroups && Array.isArray(props.schema.tableGroups)) {
-              const group = props.schema.tableGroups.find(g => g && g.id === groupId);
-              if (group) {
-                console.log("Actualizando posición de grupo en schema:", groupId, position);
-                if (!group.position) group.position = {};
-                group.position.x = position.x;
-                group.position.y = position.y;
-              }
-            }
-          } catch (error) {
-            console.error("Error al actualizar grupo en schema:", error);
-          }
-        } else if (data.updateType === 'relation-type-update' && data.payload && data.payload.refId) {
-          // Actualizar el tipo de relación
-          const { refId, relationType, startMarker, endMarker } = data.payload;
-          
-          // Actualizar en el store de chart
-          try {
-            console.log("Socket recibido para actualizar relación:", refId, relationType);
-            const refStore = chart.getRef(refId);
-            if (refStore) {
-              console.log("Relación antes de actualizar:", JSON.stringify(refStore));
-              console.log("Actualizando tipo de relación en store:", refId, relationType);
-              
-              // Force Vue to detect the changes by creating a completely new object
-              // and properly applying the relationship type
-              const updatedRef = JSON.parse(JSON.stringify(refStore)); // Deep clone
-              updatedRef.relationType = relationType;
-              updatedRef.startMarker = startMarker;
-              updatedRef.endMarker = endMarker;
-              
-              // Update the ref in the store
-              chart.updateRef(refId, updatedRef);
-              
-              // Force a re-render if needed
-              nextTick(() => {
-                console.log("Forced re-render after relationship type update");
-              });
-              
-              // Verify the update was successful
-              const afterUpdate = chart.getRef(refId);
-              console.log("Relación después de actualizar:", JSON.stringify(afterUpdate));
-              console.log("¿Actualización exitosa?", afterUpdate.relationType === relationType);
-            }
-          } catch (error) {
-            console.error("Error al actualizar relación en store:", error);
+          // Forzar reactividad y re-render
+          nextTick(() => {
+            // Tabla actualizada
+          });
+        }
+      } catch (error) {
+        console.error("Error al actualizar tabla en store:", error);
+      }
+      
+      // También actualizar en el schema si está disponible
+      try {
+        if (props.schema && props.schema.tables && Array.isArray(props.schema.tables)) {
+          const table = props.schema.tables.find(t => t && t.id === tableId);
+          if (table) {
+            if (!table.position) table.position = {};
+            table.position.x = position.x;
+            table.position.y = position.y;
           }
         }
       } catch (error) {
-        console.error("Error al procesar actualización del diagrama:", error);
+        console.error("Error al actualizar tabla en schema:", error);
       }
-    });
-  });
+    }
+  }
 
-  // Las actualizaciones ya están siendo enviadas por los componentes VDbTable y VDbTableGroup
-  // No necesitamos un watcher adicional aquí
+  // Función para manejar actualizaciones de posición de grupo
+  const handleTableGroupPositionUpdate = (data) => {
+    if (data.updateType === 'tablegroup-position-update' && data.payload && data.payload.groupId && data.payload.position) {
+      const { groupId, position } = data.payload;
+      
+      // Verificar que tenemos posiciones válidas
+      if (typeof position.x !== 'number' || typeof position.y !== 'number') {
+        return;
+      }
+      
+      // Actualizar en el store de chart
+      try {
+        const groupStore = chart.getTableGroup(groupId);
+        if (groupStore) {
+          groupStore.x = position.x;
+          groupStore.y = position.y;
+          
+          // Forzar reactividad y re-render
+          nextTick(() => {
+            // Grupo actualizado
+          });
+        }
+      } catch (error) {
+        console.error("Error al actualizar grupo en store:", error);
+      }
+      
+      // También actualizar en el schema si está disponible
+      try {
+        if (props.schema && props.schema.tableGroups && Array.isArray(props.schema.tableGroups)) {
+          const group = props.schema.tableGroups.find(g => g && g.id === groupId);
+          if (group) {
+            if (!group.position) group.position = {};
+            group.position.x = position.x;
+            group.position.y = position.y;
+          }
+        }
+      } catch (error) {
+        console.error("Error al actualizar grupo en schema:", error);
+      }
+    }
+  }
+
+  // Función para manejar actualizaciones de relaciones - SIMPLIFICADA
+  const handleRelationshipUpdate = (data) => {
+    console.log('🔥 handleRelationshipUpdate llamada con:', data)
+    
+    if (!data || !data.relationshipChanges) {
+      console.error('❌ Datos de relación inválidos:', data)
+      return
+    }
+    
+    const { 
+      refId, 
+      relationType, 
+      startMarker, 
+      endMarker,
+      startCardinality,
+      endCardinality,
+      relationshipName 
+    } = data.relationshipChanges
+    
+    try {
+      console.log('🔗 Actualizando relación:', refId, 'a tipo:', relationType)
+      
+      const refStore = chart.getRef(refId)
+      if (refStore) {
+        // Actualizar directamente en el store
+        refStore.relationType = relationType
+        refStore.startMarker = startMarker  
+        refStore.endMarker = endMarker
+        
+        // Actualizar cardinalidades si están presentes
+        if (startCardinality !== undefined) {
+          refStore.startCardinality = startCardinality
+        }
+        if (endCardinality !== undefined) {
+          refStore.endCardinality = endCardinality
+        }
+        if (relationshipName !== undefined) {
+          refStore.relationshipName = relationshipName
+        }
+        
+        // Forzar re-render
+        nextTick(() => {
+          console.log('✅ Relación actualizada exitosamente con cardinalidades')
+        })
+      } else {
+        console.warn('⚠️ No se encontró relación en store:', refId)
+      }
+    } catch (error) {
+      console.error('❌ Error actualizando relación:', error)
+    }
+  }
+
+  // Función para manejar actualizaciones del estado del diagrama (zoom, pan, position)
+  const handleDiagramStateUpdate = (data) => {
+    if (data.updateType === 'diagram-state-update' && data.payload) {
+      const { zoom, pan, position } = data.payload
+      
+      try {
+        // Actualizar zoom
+        if (typeof zoom === 'number') {
+          chart.updateZoom(zoom)
+        }
+        
+        // Actualizar pan
+        if (pan && typeof pan.x === 'number' && typeof pan.y === 'number') {
+          chart.updatePan(pan.x, pan.y)
+        }
+        
+        // Actualizar position si está disponible
+        if (position && typeof position.x === 'number' && typeof position.y === 'number') {
+          // Position se maneja internamente por el diagrama
+        }
+      } catch (error) {
+        console.error('Error al actualizar estado del diagrama:', error)
+      }
+    }
+  }
+
+  // Escuchar actualizaciones de posición de tablas y grupos
+  onMounted(() => {
+    if (isRoomMode()) {
+      // En modo sala, los eventos se manejarán a través del Editor/Index.vue
+      // Registrar funciones globales para que el editor las pueda llamar
+      window.handleTablePositionUpdate = handleTablePositionUpdate;
+      window.handleTableGroupPositionUpdate = handleTableGroupPositionUpdate;
+      window.handleRelationshipUpdate = handleRelationshipUpdate;
+      window.handleDiagramStateUpdate = handleDiagramStateUpdate;
+    } else {
+      // Modo normal: usar el socket original
+      const projectId = 'default-project';
+      joinProject(projectId);
+      
+      // Escuchar actualizaciones del diagrama en modo normal
+      onDiagramUpdate((data) => {
+        
+        try {
+          handleTablePositionUpdate(data);
+          handleTableGroupPositionUpdate(data);
+          
+          // También manejar actualizaciones de relaciones (código existente)
+          if (data.updateType === 'relationship-type-update' && data.payload && data.payload.refId) {
+            const { refId, relationType, startMarker, endMarker } = data.payload;
+            
+            try {
+              const refStore = chart.getRef(refId);
+              if (refStore) {
+                const updatedRef = JSON.parse(JSON.stringify(refStore));
+                updatedRef.relationType = relationType;
+                updatedRef.startMarker = startMarker;
+                updatedRef.endMarker = endMarker;
+                
+                chart.updateRef(refId, updatedRef);
+                
+                nextTick(() => {
+                  // Relación actualizada
+                });
+              }
+            } catch (error) {
+              console.error("Error al actualizar relación en store:", error);
+            }
+          }
+        } catch (error) {
+          console.error("Error al procesar actualización del diagrama:", error);
+        }
+      });
+    }
+  })
+
+  onUnmounted(() => {
+    // Limpiar funciones globales si las creamos
+    if (window.handleTablePositionUpdate) {
+      delete window.handleTablePositionUpdate;
+    }
+    if (window.handleTableGroupPositionUpdate) {
+      delete window.handleTableGroupPositionUpdate;
+    }
+  })
 </script>
 
 <style scoped lang="scss">

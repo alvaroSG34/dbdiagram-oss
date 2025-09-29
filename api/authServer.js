@@ -30,7 +30,15 @@ const corsOptions = {
     
     const allowedOrigins = process.env.NODE_ENV === 'production' 
       ? [process.env.FRONTEND_URL] 
-      : ['http://localhost:8080', 'http://localhost:9000', 'http://127.0.0.1:8080'];
+      : [
+          'http://localhost:8080', 
+          'http://localhost:9000', 
+          'http://127.0.0.1:8080',
+          'http://localhost:3001',  // WebSocket server
+          'http://127.0.0.1:3001',  // WebSocket server alternate
+          'http://localhost:3210',  // Vue.js frontend
+          'http://127.0.0.1:3210'   // Vue.js frontend alternate
+        ];
     
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
@@ -54,23 +62,23 @@ app.use(express.urlencoded({ extended: true }));
 // RATE LIMITING
 // ================================================
 
-// Rate limiting para autenticación (más restrictivo)
+// Rate limiting para autenticación (más permisivo en desarrollo)
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 10, // 10 intentos por ventana
+  windowMs: process.env.NODE_ENV === 'production' ? 15 * 60 * 1000 : 5 * 60 * 1000, // 15 min en prod, 5 min en dev
+  max: process.env.NODE_ENV === 'production' ? 10 : 50, // 10 en prod, 50 en dev
   message: {
     error: 'Too many authentication attempts, please try again later.',
     code: 'RATE_LIMIT_EXCEEDED',
-    retry_after: '15 minutes'
+    retry_after: process.env.NODE_ENV === 'production' ? '15 minutes' : '5 minutes'
   },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-// Rate limiting general
+// Rate limiting general (más permisivo en desarrollo)
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
-  max: 100, // 100 requests por ventana
+  windowMs: process.env.NODE_ENV === 'production' ? 15 * 60 * 1000 : 5 * 60 * 1000, // 15 min en prod, 5 min en dev
+  max: process.env.NODE_ENV === 'production' ? 100 : 200, // 100 en prod, 200 en dev
   message: {
     error: 'Too many requests, please try again later.',
     code: 'RATE_LIMIT_EXCEEDED'

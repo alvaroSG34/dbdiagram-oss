@@ -6,8 +6,49 @@ class Room {
    * @returns {string} - Código de 8 caracteres
    */
   static generateRoomCode() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';  /**
+   * Verificar si un usuario tiene acceso a una sala por código
+   * @param {string} room_code - Código de la sala
+   * @param {number} user_id - ID del usuario
+   * @returns {Promise<Object|null>} - Información de acceso y rol del usuario
+   */
+  static async checkUserAccessByCode(room_code, user_id) {
+    try {
+      const query = `
+        SELECT 
+          rm.role, 
+          rm.joined_at, 
+          r.room_code, 
+          r.name as room_name,
+          r.id as room_id,
+          true as hasAccess
+        FROM room_members rm
+        INNER JOIN rooms r ON rm.room_id = r.id
+        WHERE r.room_code = $1 AND rm.user_id = $2
+      `;
+      
+      const result = await db.query(query, [room_code, user_id]);
+      
+      if (result.rows.length > 0) {
+        return result.rows[0];
+      }
+      
+      // Si no tiene acceso directo, verificar si la sala existe
+      const roomExists = await this.findByCode(room_code);
+      return roomExists ? { hasAccess: false, roomExists: true } : { hasAccess: false, roomExists: false };
+      
+    } catch (error) {
+      console.error('Error checking user access by code:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Verificar si un usuario tiene acceso a una sala por ID
+   * @param {number} room_id - ID de la sala  
+   * @param {number} user_id - ID del usuario
+   * @returns {Promise<Object|null>} - Información de acceso y rol del usuario
+   */et result = '';
     for (let i = 0; i < 8; i++) {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
@@ -17,7 +58,12 @@ class Room {
   /**
    * Crear una nueva sala
    * @param {Object} roomData - Datos de la sala
-   * @returns {Promise<Object>} - Sala creada
+   * @param {string} roomData.name - Nombre de la sala
+   * @param {string} roomData.description - Descripción (opcional)
+   * @param {number} roomData.creator_id - ID del usuario creador
+   * @param {boolean} roomData.is_public - Si es pública o privada
+   * @param {number} roomData.max_members - Máximo miembros (default 5)
+   * @returns {Promise<Object>} - Sala creada con código
    */
   static async create({ name, description, creator_id, is_public = false, max_members = 5 }) {
     const client = await db.pool.connect();
@@ -118,7 +164,7 @@ class Room {
         GROUP BY r.id, u.username
       `;
       
-      const result = await db.query(query, [room_code]);
+      const result = await db.query(query, [room_code.toUpperCase()]);
       return result.rows[0] || null;
     } catch (error) {
       console.error('Error finding room by code:', error);
@@ -203,11 +249,13 @@ class Room {
       }
 
       // Verificar si ya es miembro
-      const memberCheck = await client.query(
-        'SELECT id FROM room_members WHERE room_id = $1 AND user_id = $2',
-        [room.id, user_id]
-      );
-
+      const memberCheckQuery = `
+        SELECT id, role FROM room_members 
+        WHERE room_id = $1 AND user_id = $2
+      `;
+      
+      const memberCheck = await client.query(memberCheckQuery, [room.id, user_id]);
+      
       if (memberCheck.rows.length > 0) {
         throw new Error('User is already a member of this room');
       }
@@ -225,18 +273,18 @@ class Room {
       `;
       
       const memberResult = await client.query(addMemberQuery, [room.id, user_id]);
-      
+
       await client.query('COMMIT');
-      
-      console.log(`✅ User ${user_id} joined room ${room.name} (${room_code})`);
-      
+
+      console.log(`✅ User ${user_id} joined room ${room_code}`);
+
       return {
         ...room,
-        member_count: parseInt(room.member_count) + 1,
         user_role: 'member',
-        joined_at: memberResult.rows[0].joined_at
+        joined_at: memberResult.rows[0].joined_at,
+        member_count: parseInt(room.member_count) + 1
       };
-      
+
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -249,7 +297,7 @@ class Room {
    * Verificar si un usuario tiene acceso a una sala
    * @param {number} room_id - ID de la sala
    * @param {number} user_id - ID del usuario
-   * @returns {Promise<Object|null>} - Información de acceso del usuario
+   * @returns {Promise<Object|null>} - Información de membresía o null
    */
   static async checkUserAccess(room_id, user_id) {
     try {
@@ -285,7 +333,7 @@ class Room {
         FROM room_members rm
         INNER JOIN users u ON rm.user_id = u.id
         WHERE rm.room_id = $1
-        ORDER BY rm.joined_at ASC
+        ORDER BY rm.role DESC, rm.joined_at ASC
       `;
       
       const result = await db.query(query, [room_id]);
@@ -297,66 +345,30 @@ class Room {
   }
 
   /**
-   * Actualizar información de la sala
+   * Actualizar contenido DBML de la sala
    * @param {number} room_id - ID de la sala
-   * @param {number} user_id - ID del usuario (debe ser owner)
-   * @param {Object} updates - Campos a actualizar
+   * @param {string} dbml_content - Contenido DBML
    * @returns {Promise<Object>} - Sala actualizada
    */
-  static async updateRoom(room_id, user_id, updates) {
-    const client = await db.pool.connect();
-    
+  static async updateContent(room_id, dbml_content) {
     try {
-      await client.query('BEGIN');
-
-      // Verificar que sea el owner
-      const ownerCheck = await client.query(
-        'SELECT id FROM room_members WHERE room_id = $1 AND user_id = $2 AND role = $3',
-        [room_id, user_id, 'owner']
-      );
-
-      if (ownerCheck.rows.length === 0) {
-        throw new Error('Only room owner can update the room');
-      }
-
-      // Construir query dinámico
-      const allowedFields = ['name', 'description', 'is_public', 'max_members', 'dbml_content'];
-      const setClause = [];
-      const values = [];
-      let paramCount = 1;
-
-      for (const [key, value] of Object.entries(updates)) {
-        if (allowedFields.includes(key)) {
-          setClause.push(`${key} = $${paramCount}`);
-          values.push(value);
-          paramCount++;
-        }
-      }
-
-      if (setClause.length === 0) {
-        throw new Error('No valid fields to update');
-      }
-
-      setClause.push(`updated_at = CURRENT_TIMESTAMP`);
-
       const query = `
         UPDATE rooms 
-        SET ${setClause.join(', ')}
-        WHERE id = $${paramCount}
+        SET dbml_content = $1, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $2
         RETURNING *
       `;
       
-      values.push(room_id);
-      const result = await client.query(query, values);
+      const result = await db.query(query, [dbml_content, room_id]);
       
-      await client.query('COMMIT');
-      
+      if (result.rows.length === 0) {
+        throw new Error('Room not found');
+      }
+
       return result.rows[0];
     } catch (error) {
-      await client.query('ROLLBACK');
+      console.error('Error updating room content:', error);
       throw error;
-    } finally {
-      client.release();
     }
   }
 
@@ -364,7 +376,7 @@ class Room {
    * Eliminar sala (solo owner)
    * @param {number} room_id - ID de la sala
    * @param {number} user_id - ID del usuario (debe ser owner)
-   * @returns {Promise<boolean>} - True si se eliminó correctamente
+   * @returns {Promise<boolean>} - True si se eliminó
    */
   static async deleteRoom(room_id, user_id) {
     const client = await db.pool.connect();
@@ -409,7 +421,7 @@ class Room {
    * Abandonar sala (member) o transferir ownership y salir (owner)
    * @param {number} room_id - ID de la sala
    * @param {number} user_id - ID del usuario
-   * @returns {Promise<boolean>} - True si se procesó correctamente
+   * @returns {Promise<boolean>} - True si salió exitosamente
    */
   static async leaveRoom(room_id, user_id) {
     const client = await db.pool.connect();
@@ -417,7 +429,7 @@ class Room {
     try {
       await client.query('BEGIN');
 
-      // Verificar que sea miembro
+      // Verificar membresía
       const memberCheck = await client.query(
         'SELECT role FROM room_members WHERE room_id = $1 AND user_id = $2',
         [room_id, user_id]
@@ -430,27 +442,28 @@ class Room {
       const userRole = memberCheck.rows[0].role;
 
       if (userRole === 'owner') {
-        // Si es owner, verificar si hay otros miembros
+        // Si es owner, buscar otro miembro para transferir ownership
         const otherMembers = await client.query(
-          'SELECT user_id FROM room_members WHERE room_id = $1 AND user_id != $2 ORDER BY joined_at ASC LIMIT 1',
-          [room_id, user_id]
+          'SELECT user_id FROM room_members WHERE room_id = $1 AND user_id != $2 AND role = $3 ORDER BY joined_at ASC',
+          [room_id, user_id, 'member']
         );
 
         if (otherMembers.rows.length > 0) {
           // Transferir ownership al miembro más antiguo
-          const newOwnerId = otherMembers.rows[0].user_id;
+          const newOwner = otherMembers.rows[0].user_id;
           await client.query(
             'UPDATE room_members SET role = $1 WHERE room_id = $2 AND user_id = $3',
-            ['owner', room_id, newOwnerId]
+            ['owner', room_id, newOwner]
           );
-          console.log(`✅ Ownership transferred to user ${newOwnerId} in room ${room_id}`);
+          
+          console.log(`✅ Ownership transferred to user ${newOwner} in room ${room_id}`);
         }
         // Si no hay otros miembros, la sala se eliminará automáticamente por CASCADE
       }
 
-      // Remover usuario de la sala
+      // Remover al usuario
       const removeResult = await client.query(
-        'DELETE FROM room_members WHERE room_id = $1 AND user_id = $2',
+        'DELETE FROM room_members WHERE room_id = $1 AND user_id = $2 RETURNING id',
         [room_id, user_id]
       );
 

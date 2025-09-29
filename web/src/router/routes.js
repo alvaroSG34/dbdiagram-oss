@@ -5,8 +5,27 @@ const routes = [
     children: [
       {
         path: "",
-        redirect: "editor"
-        //component: () => import("pages/Index.vue")
+        redirect: "/dashboard"
+      },
+      {
+        path: "dashboard",
+        component: () => import("pages/Dashboard.vue"),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: "create-room",
+        component: () => import("pages/CreateRoom.vue"),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: "join-room", 
+        component: () => import("pages/JoinRoom.vue"),
+        meta: { requiresAuth: true }
+      },
+      {
+        path: "room/:roomCode",
+        component: () => import("pages/Editor/Index.vue"),
+        meta: { requiresAuth: true }
       },
       {
         path: "editor",
@@ -14,6 +33,14 @@ const routes = [
           default: () => import("pages/Editor/Index.vue"),
           toolbar: () => import("pages/Editor/Toolbar.vue")
         }
+      },
+      {
+        path: "login",
+        component: () => import("pages/auth/Login.vue")
+      },
+      {
+        path: "register", 
+        component: () => import("pages/auth/Register.vue")
       }
     ]
   },

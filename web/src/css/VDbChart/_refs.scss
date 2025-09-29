@@ -58,4 +58,108 @@
     }
 
   }
+
+  // Cardinality and relationship name labels
+  &__cardinality-labels {
+    pointer-events: none; // Don't interfere with line selection
+  }
+
+  &__cardinality-label {
+    font-family: 'Roboto', sans-serif;
+    font-size: 16px; // Increased from 12px to 16px
+    font-weight: 600; // Increased from 500 to 600
+    fill: #333;
+    stroke: #fff;
+    stroke-width: 3;
+    paint-order: stroke fill;
+    pointer-events: none;
+    user-select: none;
+
+    &.db-ref__cardinality-start,
+    &.db-ref__cardinality-end {
+      font-weight: 700; // Increased from 600 to 700
+      fill: #2c3e50;
+      font-size: 17px; // Slightly larger for cardinalities
+    }
+  }
+
+  &__relationship-name {
+    font-family: 'Roboto', sans-serif;
+    font-size: 15px; // Increased from 11px to 15px
+    font-weight: 500; // Increased from 400 to 500
+    font-style: italic;
+    fill: #555;
+    stroke: #fff;
+    stroke-width: 2;
+    paint-order: stroke fill;
+    pointer-events: none;
+    user-select: none;
+    opacity: 0.9;
+  }
+
+  // Enhanced styles for UML relationship types
+  &__association {
+    .db-ref__cardinality-label {
+      fill: #2980b9;
+      font-size: 17px; // Added explicit larger size
+    }
+    .db-ref__relationship-name {
+      font-size: 15px; // Added explicit size for consistency
+    }
+  }
+
+  &__composition {
+    .db-ref__cardinality-label {
+      fill: #e74c3c;
+      font-weight: 700;
+      font-size: 18px; // Added explicit larger size
+    }
+    .db-ref__relationship-name {
+      fill: #c0392b;
+      font-size: 16px; // Added explicit larger size
+    }
+  }
+
+  &__aggregation {
+    .db-ref__cardinality-label {
+      fill: #f39c12;
+      font-weight: 700; // Increased from 600
+      font-size: 18px; // Added explicit larger size
+    }
+    .db-ref__relationship-name {
+      fill: #d68910;
+      font-size: 16px; // Added explicit larger size
+    }
+  }
+
+  &__generalization {
+    .db-ref__cardinality-label {
+      fill: #8e44ad;
+      font-weight: 700; // Increased from 600
+      font-size: 18px; // Added explicit larger size
+    }
+    .db-ref__relationship-name {
+      fill: #7d3c98;
+      font-size: 16px; // Added explicit larger size
+    }
+  }
+
+  // Responsive font sizes for different zoom levels
+  .db-chart[data-zoom="small"] & {
+    &__cardinality-label {
+      font-size: 14px; // Increased from 10px
+    }
+    &__relationship-name {
+      font-size: 12px; // Increased from 9px
+    }
+  }
+
+  .db-chart[data-zoom="large"] & {
+    &__cardinality-label {
+      font-size: 20px; // Increased from 14px
+    }
+    &__relationship-name {
+      font-size: 18px; // Increased from 12px
+    }
+  }
 }

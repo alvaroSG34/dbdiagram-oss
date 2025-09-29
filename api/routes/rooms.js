@@ -217,39 +217,55 @@ router.get('/:room_code', authMiddleware, async (req, res) => {
 
     // Verificar acceso del usuario
     const userAccess = await Room.checkUserAccess(room.id, user_id);
-    if (!userAccess) {
-      return res.status(403).json({
-        error: 'Access denied to this room',
-        code: 'ACCESS_DENIED'
+    
+    // Si el usuario tiene acceso, devolver información completa
+    if (userAccess) {
+      // Obtener miembros
+      const members = await Room.getRoomMembers(room.id);
+
+      return res.json({
+        success: true,
+        room: {
+          id: room.id,
+          name: room.name,
+          description: room.description,
+          room_code: room.room_code,
+          is_public: room.is_public,
+          max_members: room.max_members,
+          member_count: parseInt(room.member_count),
+          dbml_content: room.dbml_content,
+          creator_username: room.creator_username,
+          created_at: room.created_at,
+          updated_at: room.updated_at,
+          user_role: userAccess.role,
+          joined_at: userAccess.joined_at
+        },
+        members: members.map(member => ({
+          id: member.id,
+          username: member.username,
+          role: member.role,
+          joined_at: member.joined_at
+        }))
       });
     }
 
-    // Obtener miembros
-    const members = await Room.getRoomMembers(room.id);
-
-    res.json({
+    // Si no tiene acceso, verificar si la sala es pública o si puede unirse
+    const canJoin = parseInt(room.member_count) < room.max_members;
+    
+    // Devolver información limitada para usuarios sin acceso
+    return res.json({
       success: true,
       room: {
-        id: room.id,
         name: room.name,
         description: room.description,
         room_code: room.room_code,
         is_public: room.is_public,
         max_members: room.max_members,
         member_count: parseInt(room.member_count),
-        dbml_content: room.dbml_content,
         creator_username: room.creator_username,
-        created_at: room.created_at,
-        updated_at: room.updated_at,
-        user_role: userAccess.role,
-        joined_at: userAccess.joined_at
-      },
-      members: members.map(member => ({
-        id: member.id,
-        username: member.username,
-        role: member.role,
-        joined_at: member.joined_at
-      }))
+        can_join: canJoin,
+        user_is_member: false
+      }
     });
 
   } catch (error) {

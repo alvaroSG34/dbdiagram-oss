@@ -17,6 +17,7 @@ module.exports = configure(function (ctx) {
       "i18n",
       "ace",
       "pinia",
+      "axios",
       "v3num",
       "socket" // Archivo de boot para inicializar WebSockets
     ],

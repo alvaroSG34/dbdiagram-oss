@@ -134,19 +134,36 @@ export const useEditorStore = defineStore("editor", {
       this.clearParserError();
     },
     updateDatabase() {
-      console.log("updating database...");
       try {
         const database = Parser.parse(this.source.text, this.source.format);
         database.normalize();
+        
+        // Add validation for database structure
+        if (!database.schemas || !database.schemas[0]) {
+          console.warn('⚠️ Parsed database has no valid schemas, creating default');
+          database.schemas = [{
+            tableGroups: [],
+            tables: [],
+            refs: []
+          }];
+        }
+        
         this.database = database;
         this.clearParserError();
-        console.log("updated database");
         const chart = useChartStore();
         chart.loadDatabase(database);
       } catch (e) {
-        // do nothing
-        console.error(e);
+        console.error('Database update error:', e);
         this.updateParserError(e);
+        
+        // Provide fallback database on error
+        this.database = {
+          schemas: [{
+            tableGroups: [],
+            tables: [],
+            refs: []
+          }]
+        };
       }
     },
     updatePreferences(preferences) {
@@ -206,16 +223,32 @@ export const useEditorStore = defineStore("editor", {
     },
     updateParserError(err) {
       if (err) {
-        this.$patch({
-          parserError: {
-            location: {
-              start: { row: err.location.start.line - 1, col: err.location.start.column - 1 },
-              end: { row: err.location.end.line - 1, col: err.location.end.column - 1 }
-            },
-            type: 'error',
-            message: err.message
-          }
-        });
+        // Add defensive checks for error structure
+        if (err.location && err.location.start && err.location.end) {
+          this.$patch({
+            parserError: {
+              location: {
+                start: { row: err.location.start.line - 1, col: err.location.start.column - 1 },
+                end: { row: err.location.end.line - 1, col: err.location.end.column - 1 }
+              },
+              type: 'error',
+              message: err.message || 'Parser error'
+            }
+          });
+        } else {
+          // Fallback for errors without proper location
+          console.warn('⚠️ Parser error without proper location structure:', err);
+          this.$patch({
+            parserError: {
+              location: {
+                start: { row: 0, col: 0 },
+                end: { row: 0, col: 0 }
+              },
+              type: 'error',
+              message: err.message || err.toString() || 'Parser error'
+            }
+          });
+        }
       } else {
         this.$patch({
           parserError: undefined

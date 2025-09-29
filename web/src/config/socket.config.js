@@ -36,13 +36,11 @@ export const getSocketUrl = () => {
   }
   
   const url = `http://${config.host}:${config.port}`;
-  console.log(`🔌 Conectando al servidor socket: ${url}`);
   return url;
 };
 
 // Para configuración manual (útil para desarrollo)
 export const getManualSocketUrl = (host = 'localhost', port = '3001') => {
   const url = `http://${host}:${port}`;
-  console.log(`🔌 Configuración manual del socket: ${url}`);
   return url;
 };

@@ -195,11 +195,25 @@
 
   })
   const panZoom = ref({})
+  const shouldUpdateBBox = ref(true)
   const position = reactive({
     x: 0,
     y: 0
   },)
   let initialized = false
+
+  // Función para detectar si estamos en modo sala
+  const isRoomMode = () => {
+    return window.location.pathname.includes('/room/') || window.location.href.includes('/room/')
+  }
+
+  // Función para deshabilitar temporalmente las actualizaciones de BBox
+  const disableBBoxUpdates = () => {
+    shouldUpdateBBox.value = false
+    setTimeout(() => {
+      shouldUpdateBBox.value = true
+    }, 1000) // Rehabilitar después de 1 segundo
+  }
 
   const updateCursorPosition = (e) => {
     const p = store.inverseCtm.transformPoint({
@@ -379,6 +393,83 @@
     // Configurar listener para actualizaciones de WebSocket
     setupWebSocketListeners()
     
+    // Exponer función para deshabilitar actualizaciones de BBox
+    window.disableBBoxUpdates = disableBBoxUpdates
+    
+    // Exponer función para centrar la vista en las tablas
+    window.centerViewOnTables = () => {
+      // Obtener todas las tablas del store
+      const tables = Object.values(store.tables)
+      
+      if (tables.length === 0) {
+        return
+      }
+      
+      // Calcular el bounding box de todas las tablas
+      let minX = Infinity
+      let minY = Infinity  
+      let maxX = -Infinity
+      let maxY = -Infinity
+      
+      tables.forEach(table => {
+        if (typeof table.x === 'number' && typeof table.y === 'number') {
+          const tableRight = table.x + (table.width || 200) // Default width if not set
+          const tableBottom = table.y + (table.height || 150) // Default height if not set
+          
+          minX = Math.min(minX, table.x)
+          minY = Math.min(minY, table.y)
+          maxX = Math.max(maxX, tableRight)
+          maxY = Math.max(maxY, tableBottom)
+        }
+      })
+      
+      if (minX === Infinity) {
+        return
+      }
+      
+      // Calcular el centro del bounding box
+      const centerX = (minX + maxX) / 2
+      const centerY = (minY + maxY) / 2
+      
+      // Usar svg-pan-zoom para centrar la vista
+      if (panZoom.value && typeof panZoom.value.pan === 'function' && typeof panZoom.value.zoom === 'function') {
+        // Paso 1: Establecer zoom al 100% (1.0) primero y actualizar el store
+        panZoom.value.zoom(1.0)
+        
+        // Actualizar el store con el zoom al 100%
+        store.$patch({
+          zoom: 1.0
+        })
+        
+        // Paso 2: Pequeño delay para que el zoom se aplique completamente
+        setTimeout(() => {
+          // Get current viewport size after zoom change
+          const sizes = panZoom.value.getSizes()
+          const viewportCenter = {
+            x: sizes.width / 2,
+            y: sizes.height / 2
+          }
+          
+          // Calculate the pan needed to center the tables at 100% zoom
+          const targetPan = {
+            x: viewportCenter.x - centerX,
+            y: viewportCenter.y - centerY
+          }
+          
+          panZoom.value.pan(targetPan)
+          
+          // Actualizar el store con la nueva posición de pan
+          store.$patch({
+            pan: {
+              x: targetPan.x,
+              y: targetPan.y
+            }
+          })
+        }, 150) // Aumentado el delay para asegurar que el zoom se aplique completamente
+        
+      }
+    }
+    
     // Exponer la función de creación de DBML globalmente
     window.createDbmlRelationship = createDbmlRelationship
   })
@@ -392,22 +483,54 @@
     }
     document.removeEventListener('keydown', handleKeyPress)
     
-    // Limpiar función global
+    // Limpiar funciones globales
     if (window.createDbmlRelationship === createDbmlRelationship) {
       delete window.createDbmlRelationship
+    }
+    if (window.disableBBoxUpdates === disableBBoxUpdates) {
+      delete window.disableBBoxUpdates
+    }
+    if (window.centerViewOnTables) {
+      delete window.centerViewOnTables
     }
   })
 
   watch(() => props.tables, () => {
-  panZoom.value.updateBBox()
+    if (shouldUpdateBBox.value && panZoom.value && typeof panZoom.value.updateBBox === 'function') {
+      panZoom.value.updateBBox()
+    }
   })
 
   watch(() => props.refs, () => {
-  panZoom.value.updateBBox()
+    if (shouldUpdateBBox.value && panZoom.value && typeof panZoom.value.updateBBox === 'function') {
+      panZoom.value.updateBBox()
+    }
   })
 
   watch(() => store.zoom, (newZoom) => {
     panZoom.value.zoom(newZoom)
+    // Sincronizar zoom con otros usuarios en modo sala
+    if (isRoomMode()) {
+      sendDiagramUpdate('diagram-state-update', {
+        zoom: newZoom,
+        pan: store.pan,
+        position: { x: 0, y: 0 } // Position no se usa en este contexto
+      })
+    }
+  })
+
+  watch(() => store.pan, (newPan) => {
+    if (panZoom.value && typeof panZoom.value.pan === 'function') {
+      panZoom.value.pan(newPan)
+    }
+    // Sincronizar pan con otros usuarios en modo sala
+    if (isRoomMode()) {
+      sendDiagramUpdate('diagram-state-update', {
+        zoom: store.zoom,
+        pan: newPan,
+        position: { x: 0, y: 0 } // Position no se usa en este contexto
+      })
+    }
   })
 
   function onRefDblClick (e, ref) {

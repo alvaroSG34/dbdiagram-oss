@@ -15,7 +15,6 @@ let isConnected = false;
 let currentProjectId = null;
 
 socket.on('connect', () => {
-  console.log(`🔌 Conectado al servidor WebSocket en ${SOCKET_SERVER_IP}:${SOCKET_PORT}`);
   isConnected = true;
 
   if (currentProjectId) {
@@ -24,7 +23,6 @@ socket.on('connect', () => {
 });
 
 socket.on('disconnect', () => {
-  console.log('❌ Desconectado del servidor WebSocket');
   isConnected = false;
 });
 

@@ -43,6 +43,11 @@
         set: (val) => {
           emit('update:source', val);
           
+          // Deshabilitar actualizaciones de BBox mientras se escribe para evitar movimiento de vista
+          if (window.disableBBoxUpdates) {
+            window.disableBBoxUpdates();
+          }
+          
           // Si el cambio es local (no provocado por una actualización remota), enviarlo al servidor
           if (!isRemoteUpdate) {
             sendDiagramUpdate('dbml-code-update', { code: val });

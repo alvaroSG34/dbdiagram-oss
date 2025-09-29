@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test WebSocket - Salas Colaborativas</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .log { height: 300px; overflow-y: scroll; background: #f5f5f5; padding: 10px; border: 1px solid #ddd; }
+        input, button { padding: 8px; margin: 5px; }
+        .user-list { background: #e8f4fd; padding: 10px; border-radius: 5px; }
+        .notification { background: #d4edda; color: #155724; padding: 10px; margin: 5px 0; border-radius: 5px; }
+        .error { background: #f8d7da; color: #721c24; }
+        .success { background: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏠 Test WebSocket - Salas Colaborativas</h1>
+        
+        <!-- Sección de Login -->
+        <div class="section">
+            <h3>🔐 Autenticación</h3>
+            <input type="email" id="email" placeholder="Email" value="test@dbdiagram.com">
+            <input type="password" id="password" placeholder="Password" value="password123">
+            <button onclick="login()">Login</button>
+            <button onclick="disconnect()">Desconectar</button>
+            <div id="authStatus">❌ No autenticado</div>
+        </div>
+
+        <!-- Sección de Sala -->
+        <div class="section">
+            <h3>🚪 Gestión de Salas</h3>
+            <input type="text" id="roomCode" placeholder="Código de Sala (ej: ABCD1234)">
+            <button onclick="createRoom()">Crear Sala</button>
+            <button onclick="joinRoom()">Unirse a Sala</button>
+            <button onclick="leaveRoom()">Salir de Sala</button>
+            <div id="roomStatus">❌ No conectado a ninguna sala</div>
+        </div>
+
+        <!-- Usuarios Conectados -->
+        <div class="section">
+            <h3>👥 Usuarios Conectados</h3>
+            <div id="usersList" class="user-list">
+                No hay usuarios conectados
+            </div>
+        </div>
+
+        <!-- Simulación de Cambios -->
+        <div class="section">
+            <h3>📝 Simular Cambios</h3>
+            <textarea id="dbmlContent" placeholder="Contenido DBML..." rows="4" style="width: 100%;">Table users {
+  id integer [primary key]
+  username varchar
+  email varchar
+}</textarea>
+            <br>
+            <button onclick="sendUpdate()">Enviar Actualización</button>
+        </div>
+
+        <!-- Log de Eventos -->
+        <div class="section">
+            <h3>📋 Log de Eventos</h3>
+            <div id="log" class="log"></div>
+            <button onclick="clearLog()">Limpiar Log</button>
+        </div>
+
+        <!-- Notificaciones -->
+        <div id="notifications" style="position: fixed; top: 20px; right: 20px; width: 300px; z-index: 1000;">
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        let socket = null;
+        let currentRoom = null;
+        let authToken = null;
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logDiv = document.getElementById('log');
+            const color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            logDiv.innerHTML += `<div style="color: ${color};">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        function showNotification(message, type = 'info') {
+            const notificationsDiv = document.getElementById('notifications');
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            
+            notificationsDiv.appendChild(notification);
+            
+            setTimeout(() => {
+                notificationsDiv.removeChild(notification);
+            }, 5000);
+        }
+
+        async function login() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch('http://localhost:3003/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    authToken = data.token;
+                    document.getElementById('authStatus').textContent = `✅ Autenticado como: ${data.user.username}`;
+                    log(`Login exitoso: ${data.user.username}`, 'success');
+                    connectSocket();
+                } else {
+                    log(`Error de login: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                log(`Error de conexión: ${error.message}`, 'error');
+            }
+        }
+
+        function connectSocket() {
+            if (!authToken) {
+                log('No hay token de autenticación', 'error');
+                return;
+            }
+
+            socket = io('http://localhost:3001', {
+                auth: { token: authToken }
+            });
+
+            socket.on('connect', () => {
+                log('✅ Conectado al WebSocket', 'success');
+            });
+
+            socket.on('disconnect', () => {
+                log('❌ Desconectado del WebSocket', 'error');
+                document.getElementById('roomStatus').textContent = '❌ No conectado a ninguna sala';
+                updateUsersList([]);
+            });
+
+            socket.on('connect_error', (error) => {
+                log(`❌ Error de conexión WebSocket: ${error.message}`, 'error');
+            });
+
+            // Eventos de sala
+            socket.on('room-joined', (data) => {
+                currentRoom = data.room.code;
+                document.getElementById('roomStatus').textContent = `✅ Conectado a sala: ${data.room.name} (${data.room.code})`;
+                document.getElementById('dbmlContent').value = data.room.currentContent || '';
+                updateUsersList(data.room.connectedUsers);
+                log(`✅ Te uniste a la sala: ${data.room.name}`, 'success');
+            });
+
+            socket.on('join-room-error', (data) => {
+                log(`❌ Error al unirse a la sala: ${data.error}`, 'error');
+            });
+
+            socket.on('user-joined-room', (data) => {
+                log(`👋 ${data.user.username} se unió a la sala (Total: ${data.totalUsers})`, 'success');
+                // Aquí actualizarías la lista de usuarios
+            });
+
+            socket.on('user-left-room', (data) => {
+                log(`🚪 ${data.user.username} salió de la sala (Total: ${data.totalUsers})`, 'info');
+            });
+
+            socket.on('user-notification', (data) => {
+                showNotification(data.message, data.type === 'user-joined' ? 'success' : 'info');
+            });
+
+            socket.on('diagram-update', (data) => {
+                log(`📝 ${data.username} actualizó el diagrama: ${data.updateType}`, 'info');
+                if (data.dbml_content) {
+                    document.getElementById('dbmlContent').value = data.dbml_content;
+                }
+            });
+
+            socket.on('kicked-from-room', (data) => {
+                log(`👢 Fuiste expulsado de la sala: ${data.message}`, 'error');
+                currentRoom = null;
+                document.getElementById('roomStatus').textContent = '❌ Expulsado de la sala';
+                updateUsersList([]);
+            });
+
+            socket.on('error', (data) => {
+                log(`❌ Error: ${data.message}`, 'error');
+            });
+        }
+
+        async function createRoom() {
+            if (!authToken) {
+                log('Debes estar autenticado para crear una sala', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:3003/api/rooms', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        name: `Sala de Prueba ${Date.now()}`,
+                        description: 'Sala creada desde el test WebSocket',
+                        is_public: false,
+                        max_members: 5
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('roomCode').value = data.room.room_code;
+                    log(`✅ Sala creada: ${data.room.name} (${data.room.room_code})`, 'success');
+                } else {
+                    log(`❌ Error creando sala: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                log(`❌ Error de conexión: ${error.message}`, 'error');
+            }
+        }
+
+        function joinRoom() {
+            if (!socket) {
+                log('Debes conectarte al WebSocket primero', 'error');
+                return;
+            }
+
+            const roomCode = document.getElementById('roomCode').value.trim().toUpperCase();
+            if (!roomCode) {
+                log('Ingresa un código de sala', 'error');
+                return;
+            }
+
+            socket.emit('join-room', { room_code: roomCode });
+            log(`🚪 Intentando unirse a la sala: ${roomCode}`, 'info');
+        }
+
+        function leaveRoom() {
+            if (currentRoom && socket) {
+                socket.disconnect();
+                currentRoom = null;
+                document.getElementById('roomStatus').textContent = '❌ Desconectado de la sala';
+                updateUsersList([]);
+                log('🚪 Saliste de la sala', 'info');
+            }
+        }
+
+        function sendUpdate() {
+            if (!socket || !currentRoom) {
+                log('Debes estar conectado a una sala', 'error');
+                return;
+            }
+
+            const content = document.getElementById('dbmlContent').value;
+            
+            socket.emit('diagram-update', {
+                room_code: currentRoom,
+                updateType: 'content-change',
+                payload: { type: 'dbml-update' },
+                dbml_content: content
+            });
+
+            log(`📤 Enviando actualización...`, 'info');
+        }
+
+        function disconnect() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+                authToken = null;
+                currentRoom = null;
+                document.getElementById('authStatus').textContent = '❌ No autenticado';
+                document.getElementById('roomStatus').textContent = '❌ No conectado a ninguna sala';
+                updateUsersList([]);
+                log('🔌 Desconectado manualmente', 'info');
+            }
+        }
+
+        function updateUsersList(users) {
+            const usersList = document.getElementById('usersList');
+            if (!users || users.length === 0) {
+                usersList.innerHTML = 'No hay usuarios conectados';
+                return;
+            }
+
+            const usersHtml = users.map(user => 
+                `<div>👤 ${user.username} (${user.role}) - Conectado: ${new Date(user.joinedAt).toLocaleTimeString()}</div>`
+            ).join('');
+            
+            usersList.innerHTML = usersHtml;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        // Auto-login para pruebas rápidas
+        window.addEventListener('load', () => {
+            log('🚀 Cliente de prueba WebSocket cargado', 'success');
+            log('💡 Tip: Haz click en Login para comenzar', 'info');
+        });
+    </script>
+</body>
+</html>

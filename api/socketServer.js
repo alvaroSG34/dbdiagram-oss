@@ -1,8 +1,30 @@
 const http = require('http');
 const { Server } = require('socket.io');
+const { authenticateSocket } = require('./middleware/socketAuth');
+const Room = require('./models/Room');
+const fs = require('fs');
+const path = require('path');
+require('dotenv').config();
 
 // Crear un servidor HTTP básico
-const server = http.createServer();
+const server = http.createServer((req, res) => {
+  // Servir archivo de prueba
+  if (req.url === '/test' || req.url === '/') {
+    const filePath = path.join(__dirname, 'test-websocket.html');
+    fs.readFile(filePath, 'utf8', (err, data) => {
+      if (err) {
+        res.writeHead(500, {'Content-Type': 'text/plain'});
+        res.end('Error loading test page');
+      } else {
+        res.writeHead(200, {'Content-Type': 'text/html'});
+        res.end(data);
+      }
+    });
+  } else {
+    res.writeHead(404, {'Content-Type': 'text/plain'});
+    res.end('Not found');
+  }
+});
 
 // Inicializar Socket.IO en el servidor
 const io = new Server(server, {
@@ -12,126 +34,398 @@ const io = new Server(server, {
   }
 });
 
-// Gestión de proyectos/salas
-const projects = new Map(); // Almacena información sobre los proyectos activos
+// Aplicar middleware de autenticación
+io.use(authenticateSocket);
 
-// Manejar conexiones de clientes
+// Gestión de salas activas
+const activeRooms = new Map(); // room_code -> { users: Map<userId, socketInfo>, roomData: {...} }
+
+// Manejar conexiones de clientes autenticados
 io.on('connection', (socket) => {
-  console.log(`Cliente conectado: ${socket.id}`);
+  console.log(`✅ Usuario autenticado conectado: ${socket.username} (${socket.userId})`);
 
-  // Unirse a un proyecto específico
-  socket.on('join-project', (projectId) => {
-    socket.join(projectId);
-    console.log(`Cliente ${socket.id} se unió al proyecto ${projectId}`);
-    
-    // Guardar el proyecto al que se unió este cliente para usarlo en desconexión
-    socket.currentProjectId = projectId;
-    
-    // Inicializar el proyecto si es necesario
-    if (!projects.has(projectId)) {
-      projects.set(projectId, {
-        users: new Set(),
-        // Aquí podríamos almacenar el estado actual del diagrama si fuera necesario
+  // Unirse a una sala específica
+  socket.on('join-room', async (data) => {
+    try {
+      const { room_code, room_password } = data;
+      
+      console.log(`🚪 ${socket.username} intentando unirse a la sala: ${room_code}`);
+
+      // Primero buscar la sala para obtener su ID
+      const room = await Room.findByCode(room_code);
+      if (!room) {
+        return socket.emit('join-room-error', {
+          error: 'Sala no encontrada',
+          code: 'ROOM_NOT_FOUND'
+        });
+      }
+
+      // Verificar si el usuario ya tiene acceso a la sala
+      let roomAccess = await Room.checkUserAccess(room.id, socket.userId);
+      
+      if (!roomAccess) {
+        // Si no tiene acceso directo, intentar unirse con el código/contraseña
+        try {
+          await Room.joinRoom(room_code.toUpperCase(), socket.userId);
+          console.log(`🎉 ${socket.username} se unió exitosamente a la sala ${room_code}`);
+          
+          // Obtener el acceso después de unirse
+          roomAccess = await Room.checkUserAccess(room.id, socket.userId);
+        } catch (joinError) {
+          return socket.emit('join-room-error', {
+            error: joinError.message,
+            code: 'JOIN_FAILED'
+          });
+        }
+      }
+
+      // Unirse al room de Socket.IO
+      socket.join(room_code);
+      socket.currentRoom = room_code;
+
+      // Inicializar sala activa si es necesaria
+      if (!activeRooms.has(room_code)) {
+        activeRooms.set(room_code, {
+          users: new Map(),
+          roomData: room,
+          lastUpdate: new Date()
+        });
+      }
+
+      const roomInfo = activeRooms.get(room_code);
+      
+      // Agregar usuario a la sala activa
+      roomInfo.users.set(socket.userId, {
+        socketId: socket.id,
+        username: socket.username,
+        userId: socket.userId,
+        joinedAt: new Date(),
+        role: roomAccess.role || 'member'
+      });
+
+      // Obtener lista de usuarios conectados
+      const connectedUsers = Array.from(roomInfo.users.values()).map(user => ({
+        userId: user.userId,
+        username: user.username,
+        role: user.role,
+        joinedAt: user.joinedAt
+      }));
+
+      // Confirmar al usuario que se unió exitosamente
+      socket.emit('room-joined', {
+        success: true,
+        room: {
+          code: room_code,
+          name: roomInfo.roomData.name,
+          description: roomInfo.roomData.description,
+          connectedUsers: connectedUsers,
+          currentContent: roomInfo.roomData.dbml_content || '',
+          userRole: roomInfo.users.get(socket.userId).role
+        }
+      });
+
+      // Notificar a otros usuarios sobre el nuevo participante
+      socket.to(room_code).emit('user-joined-room', {
+        user: {
+          userId: socket.userId,
+          username: socket.username,
+          role: roomInfo.users.get(socket.userId).role
+        },
+        totalUsers: connectedUsers.length
+      });
+
+      // Mostrar notificación popup a otros usuarios
+      socket.to(room_code).emit('user-notification', {
+        type: 'user-joined',
+        message: `${socket.username} se unió a la sala`,
+        username: socket.username,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log(`✅ ${socket.username} conectado a sala ${room_code}. Total usuarios: ${connectedUsers.length}`);
+
+    } catch (error) {
+      console.error('❌ Error al unirse a la sala:', error.message);
+      socket.emit('join-room-error', {
+        error: 'No se pudo unir a la sala',
+        code: 'ROOM_ACCESS_DENIED'
       });
     }
-    
-    // Añadir usuario al proyecto
-    const project = projects.get(projectId);
-    project.users.add(socket.id);
-    
-    // Enviar la lista de usuarios conectados al nuevo usuario
-    const connectedUsers = Array.from(project.users)
-      .filter(userId => userId !== socket.id) // Excluir al usuario actual
-      .map(userId => ({ userId }));
-    
-    // Notificar al nuevo usuario sobre todos los usuarios ya conectados
-    socket.emit('connected-users', {
-      users: connectedUsers,
-      projectId
-    });
-    
-    // Notificar a otros usuarios del proyecto sobre el nuevo participante
-    socket.to(projectId).emit('user-joined', { userId: socket.id, projectId });
-    
-    // Imprimir estadísticas
-    console.log(`Proyecto ${projectId}: ${project.users.size} usuarios conectados`);
   });
 
-  // Recibir cambios en el diagrama (DBML o visual)
-  socket.on('diagram-update', (data) => {
-    const { projectId, updateType, payload } = data;
-    console.log(`Actualización recibida de ${socket.id} para el proyecto ${projectId}: ${updateType}`);
-    console.log('Payload:', JSON.stringify(payload));
-    
-    // Retransmitir la actualización a todos los demás clientes en el mismo proyecto
-    socket.to(projectId).emit('diagram-update', {
-      userId: socket.id,
-      updateType,
-      payload
-    });
-    
-    // Confirmación de que se ha retransmitido el mensaje
-    console.log(`Actualización ${updateType} retransmitida a otros usuarios en el proyecto ${projectId}`);
+  // Recibir y sincronizar cambios en el diagrama
+  socket.on('diagram-update', async (data) => {
+    try {
+      const { room_code, updateType, payload, dbml_content } = data;
+      
+      if (!socket.currentRoom || socket.currentRoom !== room_code) {
+        return socket.emit('error', { message: 'No estás en esta sala' });
+      }
+
+      console.log(`📝 ${socket.username} actualizó el diagrama en sala ${room_code}: ${updateType}`);
+
+      // Actualizar contenido en la sala activa
+      if (activeRooms.has(room_code)) {
+        const roomInfo = activeRooms.get(room_code);
+        roomInfo.roomData.dbml_content = dbml_content || roomInfo.roomData.dbml_content;
+        roomInfo.lastUpdate = new Date();
+
+        // Guardar automáticamente en la base de datos
+        if (dbml_content) {
+          await Room.updateRoomContent(roomInfo.roomData.id, dbml_content);
+          console.log(`💾 Contenido guardado automáticamente en sala ${room_code}`);
+        }
+      }
+
+      // Retransmitir la actualización a todos los demás usuarios en la sala
+      socket.to(room_code).emit('diagram-update', {
+        userId: socket.userId,
+        username: socket.username,
+        updateType,
+        payload,
+        dbml_content,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error al actualizar diagrama:', error.message);
+      socket.emit('error', { message: 'Error al guardar cambios' });
+    }
+  });
+
+  // Manejar actualizaciones del estado del diagrama (zoom, pan, position)
+  socket.on('diagram-state-update', async (data) => {
+    try {
+      const { room_code, updateType, payload } = data;
+      
+      if (!socket.currentRoom || socket.currentRoom !== room_code) {
+        return socket.emit('error', { message: 'No estás en esta sala' });
+      }
+
+      const { zoom, pan, position } = payload;
+      console.log(`🎯 ${socket.username} actualizó estado del diagrama en sala ${room_code}: zoom=${zoom}, pan=[${pan.x}, ${pan.y}], position=[${position.x}, ${position.y}]`);
+
+      // Retransmitir la actualización a todos los demás usuarios en la sala
+      socket.to(room_code).emit('diagram-state-update', {
+        userId: socket.userId,
+        username: socket.username,
+        updateType: 'diagram-state-update',
+        payload,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error al actualizar estado del diagrama:', error.message);
+      socket.emit('error', { message: 'Error al actualizar estado del diagrama' });
+    }
+  });
+
+  // Manejar actualizaciones de tipos de relación UML - SIMPLIFICADO
+  socket.on('relationship-type-update', async (data) => {
+    try {
+      const { room_code, relationshipChanges } = data;
+      
+      if (!socket.currentRoom || socket.currentRoom !== room_code) {
+        return socket.emit('error', { message: 'No estás en esta sala' });
+      }
+
+      console.log(`🔗 ${socket.username} actualizó relación en sala ${room_code}:`, relationshipChanges);
+
+      // Retransmitir la actualización a todos los demás usuarios en la sala
+      socket.to(room_code).emit('relationship-type-update', {
+        userId: socket.userId,
+        username: socket.username,
+        relationshipChanges: relationshipChanges,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error al actualizar relación UML:', error.message);
+      socket.emit('error', { message: 'Error al actualizar relación UML' });
+    }
+  });
+
+  // Manejar actualizaciones de posición de tabla
+  socket.on('table-position-update', async (data) => {
+    try {
+      const { room_code, updateType, payload } = data;
+      
+      if (!socket.currentRoom || socket.currentRoom !== room_code) {
+        return socket.emit('error', { message: 'No estás en esta sala' });
+      }
+
+      const { tableId, position, isDragging } = payload;
+      const dragStatus = isDragging ? '(arrastrando)' : '(posición final)';
+      console.log(`📦 ${socket.username} movió tabla ${tableId} en sala ${room_code}: [${position.x}, ${position.y}] ${dragStatus}`);
+
+      // Retransmitir la actualización a todos los demás usuarios en la sala
+      socket.to(room_code).emit('table-position-update', {
+        userId: socket.userId,
+        username: socket.username,
+        updateType: 'table-position-update',
+        payload,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error al actualizar posición de tabla:', error.message);
+      socket.emit('error', { message: 'Error al actualizar posición de tabla' });
+    }
+  });
+
+  // Manejar actualizaciones de posición de grupo de tablas
+  socket.on('tablegroup-position-update', async (data) => {
+    try {
+      const { room_code, updateType, payload } = data;
+      
+      if (!socket.currentRoom || socket.currentRoom !== room_code) {
+        return socket.emit('error', { message: 'No estás en esta sala' });
+      }
+
+      const { groupId, position, isDragging } = payload;
+      const dragStatus = isDragging ? '(arrastrando)' : '(posición final)';
+      console.log(`📦🔗 ${socket.username} movió grupo ${groupId} en sala ${room_code}: [${position.x}, ${position.y}] ${dragStatus}`);
+
+      // Retransmitir la actualización a todos los demás usuarios en la sala
+      socket.to(room_code).emit('tablegroup-position-update', {
+        userId: socket.userId,
+        username: socket.username,
+        updateType: 'tablegroup-position-update',
+        payload,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error al actualizar posición de grupo:', error.message);
+      socket.emit('error', { message: 'Error al actualizar posición de grupo' });
+    }
+  });
+
+  // Expulsar usuario (solo owner)
+  socket.on('kick-user', async (data) => {
+    try {
+      const { room_code, target_user_id } = data;
+      
+      if (!activeRooms.has(room_code)) {
+        return socket.emit('error', { message: 'Sala no encontrada' });
+      }
+
+      const roomInfo = activeRooms.get(room_code);
+      const currentUser = roomInfo.users.get(socket.userId);
+
+      // Verificar que el usuario actual es owner
+      if (!currentUser || currentUser.role !== 'owner') {
+        return socket.emit('error', { message: 'Solo el owner puede expulsar usuarios' });
+      }
+
+      // Encontrar el socket del usuario a expulsar
+      const targetUser = roomInfo.users.get(target_user_id);
+      if (!targetUser) {
+        return socket.emit('error', { message: 'Usuario no encontrado en la sala' });
+      }
+
+      // Remover usuario de la base de datos
+      await Room.leaveRoom(roomInfo.roomData.id, target_user_id);
+
+      // Expulsar del socket
+      const targetSocket = io.sockets.sockets.get(targetUser.socketId);
+      if (targetSocket) {
+        targetSocket.emit('kicked-from-room', {
+          room_code,
+          message: `Fuiste expulsado de la sala por ${socket.username}`
+        });
+        targetSocket.leave(room_code);
+        targetSocket.currentRoom = null;
+      }
+
+      // Remover de usuarios activos
+      roomInfo.users.delete(target_user_id);
+
+      // Notificar a todos en la sala
+      socket.to(room_code).emit('user-kicked', {
+        kicked_user: {
+          userId: target_user_id,
+          username: targetUser.username
+        },
+        kicked_by: socket.username
+      });
+
+      socket.emit('user-kicked-success', {
+        message: `${targetUser.username} fue expulsado de la sala`
+      });
+
+      console.log(`👢 ${socket.username} expulsó a ${targetUser.username} de la sala ${room_code}`);
+
+    } catch (error) {
+      console.error('❌ Error al expulsar usuario:', error.message);
+      socket.emit('error', { message: 'Error al expulsar usuario' });
+    }
   });
 
   // Manejar desconexiones
   socket.on('disconnect', () => {
-    console.log(`Cliente desconectado: ${socket.id}`);
+    console.log(`❌ Usuario desconectado: ${socket.username} (${socket.userId})`);
     
-    // Si conocemos el proyecto al que estaba unido este cliente, manejarlo directamente
-    if (socket.currentProjectId && projects.has(socket.currentProjectId)) {
-      const project = projects.get(socket.currentProjectId);
-      project.users.delete(socket.id);
+    if (socket.currentRoom && activeRooms.has(socket.currentRoom)) {
+      const roomInfo = activeRooms.get(socket.currentRoom);
+      const user = roomInfo.users.get(socket.userId);
       
-      // Notificar a otros usuarios del proyecto
-      socket.to(socket.currentProjectId).emit('user-left', { 
-        userId: socket.id,
-        projectId: socket.currentProjectId
-      });
-      
-      console.log(`Usuario ${socket.id} eliminado del proyecto ${socket.currentProjectId}`);
-      console.log(`Proyecto ${socket.currentProjectId}: ${project.users.size} usuarios conectados`);
-      
-      // Limpiar proyectos vacíos
-      if (project.users.size === 0) {
-        projects.delete(socket.currentProjectId);
-        console.log(`Proyecto ${socket.currentProjectId} cerrado - sin usuarios activos`);
-      }
-    } else {
-      // Remover al usuario de todos los proyectos si no sabemos cuál era su proyecto
-      for (const [projectId, project] of projects.entries()) {
-        if (project.users.has(socket.id)) {
-          project.users.delete(socket.id);
-          
-          // Notificar a otros usuarios del proyecto
-          socket.to(projectId).emit('user-left', { userId: socket.id });
-          
-          // Limpiar proyectos vacíos
-          if (project.users.size === 0) {
-            projects.delete(projectId);
-            console.log(`Proyecto ${projectId} cerrado - sin usuarios activos`);
-          }
+      if (user) {
+        // Remover usuario de la sala activa
+        roomInfo.users.delete(socket.userId);
+
+        // Notificar a otros usuarios
+        socket.to(socket.currentRoom).emit('user-left-room', {
+          user: {
+            userId: socket.userId,
+            username: socket.username
+          },
+          totalUsers: roomInfo.users.size
+        });
+
+        // Mostrar notificación popup
+        socket.to(socket.currentRoom).emit('user-notification', {
+          type: 'user-left',
+          message: `${socket.username} salió de la sala`,
+          username: socket.username,
+          timestamp: new Date().toISOString()
+        });
+
+        console.log(`🚪 ${socket.username} salió de la sala ${socket.currentRoom}. Usuarios restantes: ${roomInfo.users.size}`);
+
+        // Limpiar salas vacías
+        if (roomInfo.users.size === 0) {
+          activeRooms.delete(socket.currentRoom);
+          console.log(`🧹 Sala ${socket.currentRoom} cerrada - sin usuarios activos`);
         }
       }
     }
   });
 });
 
-// Iniciar el servidor en el puerto 3001, aceptando conexiones de cualquier IP
-server.listen(3001, '0.0.0.0', () => {
-  console.log('Servidor WebSocket ejecutándose en http://0.0.0.0:3001');
-  console.log('Accesible desde la red local en: http://<TU-IP-LOCAL>:3001');
+// Iniciar el servidor en el puerto configurado
+const SOCKET_PORT = process.env.SOCKET_PORT || 3001;
+
+server.listen(SOCKET_PORT, '0.0.0.0', () => {
+  console.log('🚀 ========================================');
+  console.log(`📡 WebSocket Server running on port ${SOCKET_PORT}`);
+  console.log('🏠 Room-based collaboration enabled');
+  console.log('🔐 Authentication required');
+  console.log(`🌍 Server: http://0.0.0.0:${SOCKET_PORT}`);
+  console.log(`🧪 Test page: http://localhost:${SOCKET_PORT}/test`);
+  console.log('🚀 ========================================');
   
   // Mostrar IP local para facilitar la configuración
   const os = require('os');
   const networkInterfaces = os.networkInterfaces();
-  console.log('\n--- IPs disponibles ---');
+  console.log('\n--- Network Interfaces ---');
   Object.keys(networkInterfaces).forEach(interface => {
     networkInterfaces[interface].forEach(network => {
       if (network.family === 'IPv4' && !network.internal) {
-        console.log(`${interface}: ${network.address}`);
+        console.log(`${interface}: http://${network.address}:${SOCKET_PORT}`);
+        console.log(`  Test: http://${network.address}:${SOCKET_PORT}/test`);
       }
     });
   });
-  console.log('----------------------\n');
+  console.log('--------------------------\n');
 });
