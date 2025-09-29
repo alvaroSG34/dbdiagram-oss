@@ -66,7 +66,7 @@
 
 <script setup>
   import { useEditorStore } from '../store/editor'
-  import { computed, onMounted, onUnmounted, ref, nextTick } from 'vue'
+  import { computed, onMounted, onUnmounted, ref, nextTick, watch } from 'vue'
   import VDbChart from './VDbChart/VDbChart'
   import { useChartStore } from '../store/chart'
   import VDbStructure from './VDbStructure'
@@ -133,10 +133,18 @@
   // Función para manejar actualizaciones de posición de tabla
   const handleTablePositionUpdate = (data) => {
     if (data.updateType === 'table-position-update' && data.payload && data.payload.tableId && data.payload.position) {
-      const { tableId, position } = data.payload;
+      const { tableId, position, isDragging } = data.payload;
+      const dragStatus = isDragging ? '🔄 (arrastrando)' : '✅ (posición final)';
+      
+      console.log(`\n📥 [DBML-GRAPH] === ACTUALIZANDO TABLA ===`);
+      console.log(`👤 De usuario: ${data.username || 'Desconocido'}`);
+      console.log(`📦 Tabla ID: ${tableId}`);
+      console.log(`📍 Posición: x=${position.x}, y=${position.y}`);
+      console.log(`⚡ Estado: ${dragStatus}`);
       
       // Verificar que tenemos posiciones válidas
       if (typeof position.x !== 'number' || typeof position.y !== 'number') {
+        console.error(`❌ [DBML-GRAPH] Posiciones inválidas: x=${position.x}, y=${position.y}`);
         return;
       }
       
@@ -144,16 +152,19 @@
       try {
         const tableStore = chart.getTable(tableId);
         if (tableStore) {
+          console.log(`✅ [DBML-GRAPH] Tabla encontrada en chart store, actualizando...`);
           tableStore.x = position.x;
           tableStore.y = position.y;
           
           // Forzar reactividad y re-render
           nextTick(() => {
-            // Tabla actualizada
+            console.log(`✅ [DBML-GRAPH] Tabla actualizada en chart store`);
           });
+        } else {
+          console.warn(`⚠️ [DBML-GRAPH] Tabla ${tableId} no encontrada en chart store`);
         }
       } catch (error) {
-        console.error("Error al actualizar tabla en store:", error);
+        console.error("❌ [DBML-GRAPH] Error al actualizar tabla en store:", error);
       }
       
       // También actualizar en el schema si está disponible
@@ -161,14 +172,20 @@
         if (props.schema && props.schema.tables && Array.isArray(props.schema.tables)) {
           const table = props.schema.tables.find(t => t && t.id === tableId);
           if (table) {
+            console.log(`✅ [DBML-GRAPH] Tabla encontrada en schema, actualizando...`);
             if (!table.position) table.position = {};
             table.position.x = position.x;
             table.position.y = position.y;
+            console.log(`✅ [DBML-GRAPH] Tabla actualizada en schema`);
+          } else {
+            console.warn(`⚠️ [DBML-GRAPH] Tabla ${tableId} no encontrada en schema`);
           }
         }
       } catch (error) {
-        console.error("Error al actualizar tabla en schema:", error);
+        console.error("❌ [DBML-GRAPH] Error al actualizar tabla en schema:", error);
       }
+      
+      console.log(`==========================================\n`);
     }
   }
 
@@ -340,6 +357,40 @@
         }
       });
     }
+  })
+
+  // Watcher para detectar cambios en el schema y forzar re-render del diagrama
+  watch(() => props.schema, (newSchema, oldSchema) => {
+    console.log('🔄 [DBML-GRAPH] Schema changed, forcing diagram update...')
+    console.log('📊 Old schema:', oldSchema ? {
+      tables: oldSchema.tables?.length || 0,
+      refs: oldSchema.refs?.length || 0
+    } : 'undefined')
+    console.log('📊 New schema:', newSchema ? {
+      tables: newSchema.tables?.length || 0,
+      refs: newSchema.refs?.length || 0
+    } : 'undefined')
+    
+    if (newSchema && (newSchema.tables || newSchema.refs || newSchema.tableGroups)) {
+      // Forzar actualización del chart store
+      nextTick(() => {
+        try {
+          // Crear un objeto database mock para el loadDatabase
+          const mockDatabase = {
+            schemas: [newSchema]
+          }
+          
+          // Recargar el diagrama con el nuevo schema
+          chart.loadDatabase(mockDatabase)
+          console.log('✅ [DBML-GRAPH] Chart store reloaded with new schema')
+        } catch (error) {
+          console.error('❌ [DBML-GRAPH] Error updating chart store:', error)
+        }
+      })
+    }
+  }, { 
+    deep: true,
+    immediate: false 
   })
 
   onUnmounted(() => {

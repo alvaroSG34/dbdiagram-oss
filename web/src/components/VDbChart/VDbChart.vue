@@ -472,6 +472,147 @@
     
     // Exponer la función de creación de DBML globalmente
     window.createDbmlRelationship = createDbmlRelationship
+    
+    // Exponer función para refrescar el gráfico DBML
+    window.refreshDbmlGraph = () => {
+      console.log('Refreshing DBML graph...')
+      if (editorStore.updateDatabase) {
+        editorStore.updateDatabase()
+      }
+      if (panZoom.value && typeof panZoom.value.updateBBox === 'function') {
+        panZoom.value.updateBBox()
+      }
+    }
+    
+    // Exponer función para manejar actualizaciones de posición de tabla desde WebSocket
+    window.handleTablePositionUpdate = (data) => {
+      const { tableId, position, isDragging } = data.payload || data
+      const dragStatus = isDragging ? '🔄 (arrastrando)' : '✅ (posición final)';
+      
+      console.log(`\n📥 [CLIENT] === RECIBIDO MOVIMIENTO DE TABLA ===`);
+      console.log(`👤 De usuario: ${data.username || 'Desconocido'} (ID: ${data.userId || 'N/A'})`);
+      console.log(`📦 Tabla ID: ${tableId}`);
+      console.log(`📍 Nueva posición: x=${position.x}, y=${position.y}`);
+      console.log(`⚡ Estado: ${dragStatus}`);
+      console.log(`🕐 Timestamp: ${data.timestamp || new Date().toISOString()}`);
+      
+      if (store.tables[tableId]) {
+        console.log(`✅ [CLIENT] Tabla encontrada en store, actualizando...`);
+        
+        // Actualizar posición en el store
+        store.$patch({
+          tables: {
+            ...store.tables,
+            [tableId]: {
+              ...store.tables[tableId],
+              x: position.x,
+              y: position.y
+            }
+          }
+        })
+        
+        console.log(`✅ [CLIENT] Posición actualizada en store`);
+        
+        // Actualizar BBox si no está arrastrando
+        if (!isDragging && panZoom.value && typeof panZoom.value.updateBBox === 'function') {
+          console.log(`🔄 [CLIENT] Actualizando BBox del diagrama...`);
+          setTimeout(() => {
+            panZoom.value.updateBBox()
+          }, 100)
+        }
+      } else {
+        console.warn(`⚠️ [CLIENT] Tabla ${tableId} no encontrada en store`);
+      }
+      console.log(`===============================================\n`);
+    }
+    
+    // Exponer función para manejar actualizaciones de posición de grupo de tablas desde WebSocket
+    window.handleTableGroupPositionUpdate = (data) => {
+      console.log('Received table group position update:', data)
+      const { groupId, position, isDragging } = data.payload || data
+      
+      if (store.tableGroups[groupId]) {
+        // Actualizar posición del grupo en el store
+        store.$patch({
+          tableGroups: {
+            ...store.tableGroups,
+            [groupId]: {
+              ...store.tableGroups[groupId],
+              x: position.x,
+              y: position.y
+            }
+          }
+        })
+        
+        // Actualizar BBox si no está arrastrando
+        if (!isDragging && panZoom.value && typeof panZoom.value.updateBBox === 'function') {
+          setTimeout(() => {
+            panZoom.value.updateBBox()
+          }, 100)
+        }
+      }
+    }
+    
+    // Exponer función para manejar actualizaciones de relaciones UML desde WebSocket
+    window.handleRelationshipUpdate = (data) => {
+      console.log('🔗 VDbChart: Recibido relationship update:', data)
+      const { refId, relationType, startCardinality, endCardinality, relationshipName } = data.payload || data.relationshipChanges || data
+      
+      console.log('🔗 Datos extraídos:', { refId, relationType, startCardinality, endCardinality, relationshipName })
+      
+      if (store.refs[refId]) {
+        console.log('🔗 Relación encontrada en store, actualizando:', store.refs[refId])
+        
+        const originalRef = store.refs[refId]
+        const updatedRef = {
+          ...originalRef,
+          relationType: relationType || originalRef.relationType,
+          startCardinality: startCardinality !== undefined ? startCardinality : originalRef.startCardinality,
+          endCardinality: endCardinality !== undefined ? endCardinality : originalRef.endCardinality,
+          relationshipName: relationshipName !== undefined ? relationshipName : originalRef.relationshipName,
+          startMarker: ['composition', 'aggregation'].includes(relationType || originalRef.relationType),
+          endMarker: true
+        }
+        
+        console.log('🔗 Actualizando ref con datos:', updatedRef)
+        
+        // Actualizar la relación en el store
+        store.$patch({
+          refs: {
+            ...store.refs,
+            [refId]: updatedRef
+          }
+        })
+        
+        // Forzar re-render del diagrama
+        nextTick(() => {
+          if (window.refreshDbmlGraph) {
+            console.log('🔗 Forzando refresh del diagrama')
+            window.refreshDbmlGraph()
+          }
+        })
+      } else {
+        console.warn('🔗 Relación no encontrada en store para refId:', refId)
+      }
+    }
+    
+    // Exponer función para manejar actualizaciones del estado del diagrama desde WebSocket
+    window.handleDiagramStateUpdate = (data) => {
+      console.log('Received diagram state update:', data)
+      const { updateType, payload } = data
+      
+      if (updateType === 'zoom-change' && payload.zoom !== undefined) {
+        if (panZoom.value && typeof panZoom.value.zoom === 'function') {
+          panZoom.value.zoom(payload.zoom)
+          store.$patch({ zoom: payload.zoom })
+        }
+      } else if (updateType === 'pan-change' && payload.pan) {
+        if (panZoom.value && typeof panZoom.value.pan === 'function') {
+          panZoom.value.pan(payload.pan)
+          store.$patch({ pan: payload.pan })
+        }
+      }
+    }
   })
 
   onBeforeUnmount(() => {
@@ -492,6 +633,21 @@
     }
     if (window.centerViewOnTables) {
       delete window.centerViewOnTables
+    }
+    if (window.refreshDbmlGraph) {
+      delete window.refreshDbmlGraph
+    }
+    if (window.handleTablePositionUpdate) {
+      delete window.handleTablePositionUpdate
+    }
+    if (window.handleTableGroupPositionUpdate) {
+      delete window.handleTableGroupPositionUpdate
+    }
+    if (window.handleRelationshipUpdate) {
+      delete window.handleRelationshipUpdate
+    }
+    if (window.handleDiagramStateUpdate) {
+      delete window.handleDiagramStateUpdate
     }
   })
 
@@ -650,7 +806,7 @@
 
   // Configurar listeners de WebSocket para actualizaciones remotas
   function setupWebSocketListeners() {
-    console.log('Setting up WebSocket listeners for relationship updates');
+    console.log('Setting up WebSocket listeners for all diagram updates');
     
     onDiagramUpdate((data) => {
       console.log('Received diagram update from WebSocket:', data);
@@ -664,9 +820,33 @@
           
           // Mostrar notificación de que otro usuario creó una relación
           console.log(`🔄 Remote user created relationship: ${data.payload.sourceRef} ${data.payload.dbmlLine.split(' ')[2]} ${data.payload.targetRef}`);
-          
-          // Opcional: mostrar toast o notificación visual
-          // En lugar de alert (que es intrusivo), usar console.log por ahora
+        }
+      } else if (data.updateType === 'dbml-code-update') {
+        // Actualizar el contenido DBML desde otro usuario
+        if (data.dbml_content) {
+          console.log('🔄 Updating DBML content from remote user');
+          editorStore.updateSourceText(data.dbml_content);
+          editorStore.updateDatabase();
+        }
+      } else if (data.updateType === 'table-position-update') {
+        // Manejar actualizaciones de posición de tabla
+        if (window.handleTablePositionUpdate) {
+          window.handleTablePositionUpdate(data);
+        }
+      } else if (data.updateType === 'tablegroup-position-update') {
+        // Manejar actualizaciones de posición de grupo de tablas
+        if (window.handleTableGroupPositionUpdate) {
+          window.handleTableGroupPositionUpdate(data);
+        }
+      } else if (data.updateType === 'relationship-type-update') {
+        // Manejar actualizaciones de tipo de relación UML
+        if (window.handleRelationshipUpdate) {
+          window.handleRelationshipUpdate(data);
+        }
+      } else if (data.updateType === 'diagram-state-update') {
+        // Manejar actualizaciones del estado del diagrama (zoom, pan)
+        if (window.handleDiagramStateUpdate) {
+          window.handleDiagramStateUpdate(data);
         }
       }
     });

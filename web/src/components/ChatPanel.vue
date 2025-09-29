@@ -995,22 +995,6 @@ const saveSettings = () => {
 
 // Inicialización
 onMounted(async () => {
-  // Try to load API keys from config file
-  try {
-    const configModule = await import('/api-config.local.js')
-    if (configModule.API_CONFIG) {
-      // Set API keys from config if not already in localStorage
-      if (configModule.API_CONFIG.gemini && !localStorage.getItem('ai_gemini_key')) {
-        localStorage.setItem('ai_gemini_key', configModule.API_CONFIG.gemini)
-      }
-      if (configModule.API_CONFIG.openai && !localStorage.getItem('ai_openai_key')) {
-        localStorage.setItem('ai_openai_key', configModule.API_CONFIG.openai)
-      }
-    }
-  } catch (error) {
-    console.warn('API config file not found. Please configure API keys manually in settings.')
-  }
-  
   // Check for existing API key
   const existingKey = localStorage.getItem(`ai_${selectedProvider.value}_key`)
   providerInfo.value.hasApiKey = !!existingKey

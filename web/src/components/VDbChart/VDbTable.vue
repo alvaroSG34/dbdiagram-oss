@@ -143,11 +143,24 @@
 
   // Throttled function to send position updates during dragging
   const sendThrottledPositionUpdate = throttle((x, y) => {
-    sendDiagramUpdate('table-position-update', {
-      tableId: props.id,
-      position: { x, y },
-      isDragging: true // Flag to indicate this is a throttled update during drag
-    });
+    console.log(`🔄 [CLIENT] Enviando posición de tabla ${props.id} mientras arrastra: x=${x}, y=${y}`);
+    
+    // Use room socket if available, otherwise fallback to regular socket
+    if (window.sendRoomDiagramUpdate) {
+      console.log(`📡 [CLIENT] Usando socket de sala para tabla ${props.id}`);
+      window.sendRoomDiagramUpdate('table-position-update', {
+        tableId: props.id,
+        position: { x, y },
+        isDragging: true // Flag to indicate this is a throttled update during drag
+      });
+    } else {
+      console.log(`📡 [CLIENT] Usando socket regular para tabla ${props.id}`);
+      sendDiagramUpdate('table-position-update', {
+        tableId: props.id,
+        position: { x, y },
+        isDragging: true // Flag to indicate this is a throttled update during drag
+      });
+    }
   }, 50); // Send at most one update every 50ms
 
   const drag = ({
@@ -174,17 +187,34 @@
     sendThrottledPositionUpdate.cancel();
 
     // Enviar la posición final de la tabla a todos los clientes
-    console.log(`Tabla ${props.id} movida a:`, {x: state.value.x, y: state.value.y});
+    console.log(`\n✅ [CLIENT] === TABLA SOLTADA ===`);
+    console.log(`📦 Tabla ID: ${props.id}`);
+    console.log(`📍 Posición final: x=${state.value.x}, y=${state.value.y}`);
+    console.log(`🕐 Timestamp: ${new Date().toISOString()}`);
     
     // Enviar actualización final con la posición exacta al soltar
-    sendDiagramUpdate('table-position-update', {
-      tableId: props.id,
-      position: {
-        x: state.value.x,
-        y: state.value.y
-      },
-      isDragging: false // Final position update
-    });
+    if (window.sendRoomDiagramUpdate) {
+      console.log(`📡 [CLIENT] Enviando posición final via socket de sala`);
+      window.sendRoomDiagramUpdate('table-position-update', {
+        tableId: props.id,
+        position: {
+          x: state.value.x,
+          y: state.value.y
+        },
+        isDragging: false // Final position update
+      });
+    } else {
+      console.log(`📡 [CLIENT] Enviando posición final via socket regular`);
+      sendDiagramUpdate('table-position-update', {
+        tableId: props.id,
+        position: {
+          x: state.value.x,
+          y: state.value.y
+        },
+        isDragging: false // Final position update
+      });
+    }
+    console.log(`================================\n`);
 
     dragOffsetX.value = null
     dragOffsetY.value = null

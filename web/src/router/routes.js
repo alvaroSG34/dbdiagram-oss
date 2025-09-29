@@ -24,7 +24,7 @@ const routes = [
       },
       {
         path: "room/:roomCode",
-        component: () => import("pages/Editor/Index.vue"),
+        component: () => import("pages/RoomEditor.vue"),
         meta: { requiresAuth: true }
       },
       {

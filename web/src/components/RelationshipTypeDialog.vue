@@ -48,6 +48,43 @@
             </q-card>
           </div>
         </div>
+        
+        <!-- Cardinality and Name Section -->
+        <div class="q-mt-lg">
+          <div class="text-subtitle2 q-mb-md">UML Properties</div>
+          
+          <div class="row q-col-gutter-md">
+            <div class="col-4">
+              <q-input
+                v-model="startCardinality"
+                label="Start Cardinality"
+                hint="e.g., 1, 0..1, 1..*, *"
+                outlined
+                dense
+              />
+            </div>
+            
+            <div class="col-4">
+              <q-input
+                v-model="endCardinality"
+                label="End Cardinality"
+                hint="e.g., 1, 0..1, 1..*, *"
+                outlined
+                dense
+              />
+            </div>
+            
+            <div class="col-4">
+              <q-input
+                v-model="relationshipName"
+                label="Relationship Name"
+                hint="e.g., Realiza, Contiene"
+                outlined
+                dense
+              />
+            </div>
+          </div>
+        </div>
       </q-card-section>
 
       <q-card-actions align="right">
@@ -80,6 +117,12 @@ const chartStore = useChartStore()
 
 const isOpen = ref(true)
 const selectedType = ref(props.initialType)
+
+// Get current cardinality values from store
+const currentRef = chartStore.getRef(props.refId)
+const startCardinality = ref(currentRef?.startCardinality || '')
+const endCardinality = ref(currentRef?.endCardinality || '')
+const relationshipName = ref(currentRef?.relationshipName || '')
 
 const relationshipTypes = [
   {
@@ -160,12 +203,40 @@ const confirm = () => {
   }
 
   // Sincronizar con otros usuarios
-  sendDiagramUpdate('relation-type-update', {
+  console.log('🔗 Enviando actualización de tipo de relación:', {
     refId: props.refId,
     relationType: selectedType.value,
-    startMarker: updatedRefData.startMarker,
-    endMarker: updatedRefData.endMarker
+    startCardinality: startCardinality.value,
+    endCardinality: endCardinality.value,
+    relationshipName: relationshipName.value
   })
+  
+  // Detectar si estamos en modo Room o Individual
+  if (window.sendRoomDiagramUpdate) {
+    // Modo Room - usar función global de RoomEditor
+    console.log('📡 Usando sendRoomDiagramUpdate para modo colaborativo')
+    window.sendRoomDiagramUpdate('relationship-type-update', {
+      refId: props.refId,
+      relationType: selectedType.value,
+      startCardinality: startCardinality.value,
+      endCardinality: endCardinality.value,
+      relationshipName: relationshipName.value,
+      startMarker: updatedRefData.startMarker,
+      endMarker: updatedRefData.endMarker
+    })
+  } else {
+    // Modo Individual - usar función original
+    console.log('📡 Usando sendDiagramUpdate para modo individual')
+    sendDiagramUpdate('relationship-type-update', {
+      refId: props.refId,
+      relationType: selectedType.value,
+      startCardinality: startCardinality.value,
+      endCardinality: endCardinality.value,
+      relationshipName: relationshipName.value,
+      startMarker: updatedRefData.startMarker,
+      endMarker: updatedRefData.endMarker
+    })
+  }
 
   emit('confirm', selectedType.value)
 }

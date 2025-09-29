@@ -42,26 +42,44 @@ const activeRooms = new Map(); // room_code -> { users: Map<userId, socketInfo>,
 
 // Manejar conexiones de clientes autenticados
 io.on('connection', (socket) => {
+  console.log(`\n🎉 === NUEVA CONEXIÓN WEBSOCKET ===`);
   console.log(`✅ Usuario autenticado conectado: ${socket.username} (${socket.userId})`);
+  console.log(`🔌 Socket ID: ${socket.id}`);
+  console.log(`🕐 Timestamp: ${new Date().toISOString()}`);
+  console.log(`====================================\n`);
 
   // Unirse a una sala específica
   socket.on('join-room', async (data) => {
     try {
+      console.log(`📥 [SERVER] Datos recibidos en join-room:`, data);
       const { room_code, room_password } = data;
       
       console.log(`🚪 ${socket.username} intentando unirse a la sala: ${room_code}`);
 
       // Primero buscar la sala para obtener su ID
+      console.log(`🔍 [SERVER] Buscando sala con código: ${room_code}`);
       const room = await Room.findByCode(room_code);
+      
       if (!room) {
+        console.log(`❌ [SERVER] Sala ${room_code} no encontrada en la base de datos`);
         return socket.emit('join-room-error', {
           error: 'Sala no encontrada',
           code: 'ROOM_NOT_FOUND'
         });
       }
+      
+      console.log(`✅ [SERVER] Sala encontrada:`, {
+        id: room.id,
+        name: room.name,
+        description: room.description,
+        dbml_content: room.dbml_content ? 'Sí tiene contenido' : 'Sin contenido'
+      });
 
       // Verificar si el usuario ya tiene acceso a la sala
+      console.log(`🔐 [SERVER] Verificando acceso del usuario ${socket.userId} a la sala ${room.id}`);
       let roomAccess = await Room.checkUserAccess(room.id, socket.userId);
+      
+      console.log(`🔑 [SERVER] Resultado de acceso:`, roomAccess);
       
       if (!roomAccess) {
         // Si no tiene acceso directo, intentar unirse con el código/contraseña
@@ -143,6 +161,8 @@ io.on('connection', (socket) => {
       });
 
       console.log(`✅ ${socket.username} conectado a sala ${room_code}. Total usuarios: ${connectedUsers.length}`);
+      console.log(`🏠 [SERVER] socket.currentRoom establecido a: ${socket.currentRoom}`);
+      console.log(`🗂️ [SERVER] Salas activas: ${Array.from(activeRooms.keys()).join(', ')}`);
 
     } catch (error) {
       console.error('❌ Error al unirse a la sala:', error.message);
@@ -156,6 +176,7 @@ io.on('connection', (socket) => {
   // Recibir y sincronizar cambios en el diagrama
   socket.on('diagram-update', async (data) => {
     try {
+      console.log(`📥 Recibido diagram-update de ${socket.username}:`, data);
       const { room_code, updateType, payload, dbml_content } = data;
       
       if (!socket.currentRoom || socket.currentRoom !== room_code) {
@@ -225,19 +246,30 @@ io.on('connection', (socket) => {
     try {
       const { room_code, relationshipChanges } = data;
       
+      console.log(`🔗 SERVIDOR: Recibido relationship-type-update de ${socket.username}:`, {
+        room_code, 
+        relationshipChanges,
+        socketRoom: socket.currentRoom,
+        userId: socket.userId
+      });
+      
       if (!socket.currentRoom || socket.currentRoom !== room_code) {
+        console.warn(`🔗 SERVIDOR: Usuario ${socket.username} no está en la sala ${room_code} (está en ${socket.currentRoom})`);
         return socket.emit('error', { message: 'No estás en esta sala' });
       }
 
-      console.log(`🔗 ${socket.username} actualizó relación en sala ${room_code}:`, relationshipChanges);
+      console.log(`🔗 SERVIDOR: ${socket.username} actualizó relación en sala ${room_code}:`, relationshipChanges);
 
       // Retransmitir la actualización a todos los demás usuarios en la sala
-      socket.to(room_code).emit('relationship-type-update', {
+      const broadcastData = {
         userId: socket.userId,
         username: socket.username,
         relationshipChanges: relationshipChanges,
         timestamp: new Date().toISOString()
-      });
+      };
+      
+      console.log(`🔗 SERVIDOR: Propagando relationship-type-update a otros usuarios en sala ${room_code}:`, broadcastData);
+      socket.to(room_code).emit('relationship-type-update', broadcastData);
 
     } catch (error) {
       console.error('❌ Error al actualizar relación UML:', error.message);
@@ -248,15 +280,36 @@ io.on('connection', (socket) => {
   // Manejar actualizaciones de posición de tabla
   socket.on('table-position-update', async (data) => {
     try {
+      console.log(`📥 [SERVER] Recibido table-position-update:`, data);
       const { room_code, updateType, payload } = data;
       
+      console.log(`🔍 [SERVER] Verificando sala - Usuario en: ${socket.currentRoom}, Evento para: ${room_code}`);
+      
       if (!socket.currentRoom || socket.currentRoom !== room_code) {
+        console.log(`❌ [SERVER] Usuario no está en la sala correcta`);
         return socket.emit('error', { message: 'No estás en esta sala' });
       }
 
       const { tableId, position, isDragging } = payload;
-      const dragStatus = isDragging ? '(arrastrando)' : '(posición final)';
-      console.log(`📦 ${socket.username} movió tabla ${tableId} en sala ${room_code}: [${position.x}, ${position.y}] ${dragStatus}`);
+      const dragStatus = isDragging ? '🔄 (arrastrando)' : '✅ (posición final)';
+      
+      // Log detallado con timestamp y información de sala
+      console.log(`\n🔥 === MOVIMIENTO DE TABLA ===`);
+      console.log(`📦 Usuario: ${socket.username} (ID: ${socket.userId})`);
+      console.log(`🏠 Sala: ${room_code}`);
+      console.log(`🆔 Tabla ID: ${tableId}`);
+      console.log(`📍 Posición: x=${position.x}, y=${position.y}`);
+      console.log(`⚡ Estado: ${dragStatus}`);
+      console.log(`🕐 Timestamp: ${new Date().toISOString()}`);
+      
+      // Obtener información de usuarios conectados
+      if (activeRooms.has(room_code)) {
+        const roomInfo = activeRooms.get(room_code);
+        const connectedUsers = Array.from(roomInfo.users.values()).map(u => u.username);
+        console.log(`👥 Usuarios conectados (${connectedUsers.length}): ${connectedUsers.join(', ')}`);
+        console.log(`📡 Propagando a ${connectedUsers.length - 1} usuarios...`);
+      }
+      console.log(`================================\n`);
 
       // Retransmitir la actualización a todos los demás usuarios en la sala
       socket.to(room_code).emit('table-position-update', {
@@ -266,6 +319,8 @@ io.on('connection', (socket) => {
         payload,
         timestamp: new Date().toISOString()
       });
+      
+      console.log(`✅ [SERVER] Evento table-position-update propagado exitosamente`);
 
     } catch (error) {
       console.error('❌ Error al actualizar posición de tabla:', error.message);
@@ -283,8 +338,25 @@ io.on('connection', (socket) => {
       }
 
       const { groupId, position, isDragging } = payload;
-      const dragStatus = isDragging ? '(arrastrando)' : '(posición final)';
-      console.log(`📦🔗 ${socket.username} movió grupo ${groupId} en sala ${room_code}: [${position.x}, ${position.y}] ${dragStatus}`);
+      const dragStatus = isDragging ? '🔄 (arrastrando)' : '✅ (posición final)';
+      
+      // Log detallado para grupos de tablas
+      console.log(`\n🔥 === MOVIMIENTO DE GRUPO DE TABLAS ===`);
+      console.log(`📦🔗 Usuario: ${socket.username} (ID: ${socket.userId})`);
+      console.log(`🏠 Sala: ${room_code}`);
+      console.log(`🆔 Grupo ID: ${groupId}`);
+      console.log(`📍 Posición: x=${position.x}, y=${position.y}`);
+      console.log(`⚡ Estado: ${dragStatus}`);
+      console.log(`🕐 Timestamp: ${new Date().toISOString()}`);
+      
+      // Obtener información de usuarios conectados
+      if (activeRooms.has(room_code)) {
+        const roomInfo = activeRooms.get(room_code);
+        const connectedUsers = Array.from(roomInfo.users.values()).map(u => u.username);
+        console.log(`👥 Usuarios conectados (${connectedUsers.length}): ${connectedUsers.join(', ')}`);
+        console.log(`📡 Propagando a ${connectedUsers.length - 1} usuarios...`);
+      }
+      console.log(`===========================================\n`);
 
       // Retransmitir la actualización a todos los demás usuarios en la sala
       socket.to(room_code).emit('tablegroup-position-update', {

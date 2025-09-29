@@ -72,6 +72,37 @@
       />
     </g>
 
+    <!-- Cardinality Labels and Relationship Name -->
+    <text 
+      v-if="startCardinality"
+      :x="startCardinalityPosition.x" 
+      :y="startCardinalityPosition.y"
+      class="db-ref__cardinality-label db-ref__start-cardinality"
+      :class="`db-ref__cardinality-label--${relationType}`"
+    >
+      {{ startCardinality }}
+    </text>
+    
+    <text 
+      v-if="endCardinality"
+      :x="endCardinalityPosition.x" 
+      :y="endCardinalityPosition.y"
+      class="db-ref__cardinality-label db-ref__end-cardinality"
+      :class="`db-ref__cardinality-label--${relationType}`"
+    >
+      {{ endCardinality }}
+    </text>
+    
+    <text 
+      v-if="relationshipName"
+      :x="relationshipNamePosition.x" 
+      :y="relationshipNamePosition.y"
+      class="db-ref__relationship-name"
+      :class="`db-ref__relationship-name--${relationType}`"
+    >
+      {{ relationshipName }}
+    </text>
+
   </g>
 </template>
 
@@ -96,6 +127,18 @@
       default: 'association', // association, composition, aggregation, generalization
       validator: (value) => ['association', 'composition', 'aggregation', 'generalization'].includes(value)
     },
+    startCardinality: {
+      type: String,
+      default: ''
+    },
+    endCardinality: {
+      type: String,
+      default: ''
+    },
+    relationshipName: {
+      type: String,
+      default: ''
+    },
     startMarker: {
       type: Boolean,
       default: false
@@ -112,11 +155,35 @@
   // Create a reactive property for the relationship type
   const relationType = ref(s.relationType || props.relationType || 'association')
   
+  // Create reactive properties for cardinalities
+  const startCardinality = ref(s.startCardinality || props.startCardinality || '')
+  const endCardinality = ref(s.endCardinality || props.endCardinality || '')
+  const relationshipName = ref(s.relationshipName || props.relationshipName || '')
+  
   // Always update the relationType when the store changes
   watch(() => store.refs[props.id]?.relationType, (newType) => {
     if (newType && newType !== relationType.value) {
       console.log(`VDbRefUml ${props.id}: Updating relationType from ${relationType.value} to ${newType}`)
       relationType.value = newType
+    }
+  })
+  
+  // Watch for cardinality changes from the store
+  watch(() => store.refs[props.id]?.startCardinality, (newValue) => {
+    if (newValue !== undefined && newValue !== startCardinality.value) {
+      startCardinality.value = newValue
+    }
+  })
+  
+  watch(() => store.refs[props.id]?.endCardinality, (newValue) => {
+    if (newValue !== undefined && newValue !== endCardinality.value) {
+      endCardinality.value = newValue
+    }
+  })
+  
+  watch(() => store.refs[props.id]?.relationshipName, (newValue) => {
+    if (newValue !== undefined && newValue !== relationshipName.value) {
+      relationshipName.value = newValue
     }
   })
 
@@ -260,6 +327,84 @@
     
     const angle = Math.atan2(startPos.y - endPos.y, startPos.x - endPos.x) * 180 / Math.PI
     return angle
+  })
+
+  // Computed properties for cardinality label positions
+  const startCardinalityPosition = computed(() => {
+    const startPos = startMarkerPosition.value
+    const endPos = endMarkerPosition.value
+    
+    // Calculate position offset from start point
+    const dx = endPos.x - startPos.x
+    const dy = endPos.y - startPos.y
+    const distance = Math.sqrt(dx * dx + dy * dy)
+    
+    if (distance === 0) return startPos
+    
+    // Normalize direction and offset by 25 pixels from start
+    const offsetDistance = 25
+    const normalizedDx = (dx / distance) * offsetDistance
+    const normalizedDy = (dy / distance) * offsetDistance
+    
+    // Position slightly offset perpendicular to line
+    const perpDx = -normalizedDy * 0.3
+    const perpDy = normalizedDx * 0.3
+    
+    return {
+      x: startPos.x + normalizedDx + perpDx,
+      y: startPos.y + normalizedDy + perpDy + 5 // +5 for text baseline
+    }
+  })
+  
+  const endCardinalityPosition = computed(() => {
+    const startPos = startMarkerPosition.value
+    const endPos = endMarkerPosition.value
+    
+    // Calculate position offset from end point
+    const dx = startPos.x - endPos.x
+    const dy = startPos.y - endPos.y
+    const distance = Math.sqrt(dx * dx + dy * dy)
+    
+    if (distance === 0) return endPos
+    
+    // Normalize direction and offset by 25 pixels from end
+    const offsetDistance = 25
+    const normalizedDx = (dx / distance) * offsetDistance
+    const normalizedDy = (dy / distance) * offsetDistance
+    
+    // Position slightly offset perpendicular to line
+    const perpDx = -normalizedDy * 0.3
+    const perpDy = normalizedDx * 0.3
+    
+    return {
+      x: endPos.x + normalizedDx + perpDx,
+      y: endPos.y + normalizedDy + perpDy + 5 // +5 for text baseline
+    }
+  })
+  
+  const relationshipNamePosition = computed(() => {
+    const startPos = startMarkerPosition.value
+    const endPos = endMarkerPosition.value
+    
+    // Position at the middle of the line
+    const midX = (startPos.x + endPos.x) / 2
+    const midY = (startPos.y + endPos.y) / 2
+    
+    // Offset perpendicular to line
+    const dx = endPos.x - startPos.x
+    const dy = endPos.y - startPos.y
+    const distance = Math.sqrt(dx * dx + dy * dy)
+    
+    if (distance === 0) return { x: midX, y: midY }
+    
+    // Calculate perpendicular offset
+    const perpDx = (-dy / distance) * 15
+    const perpDy = (dx / distance) * 15
+    
+    return {
+      x: midX + perpDx,
+      y: midY + perpDy - 3 // -3 for better text positioning
+    }
   })
 
   const onMouseEnter = (e) => {

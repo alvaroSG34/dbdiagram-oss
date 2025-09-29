@@ -112,22 +112,42 @@ console.log(tableStates);
   // Throttled function to send position updates during dragging
   const sendThrottledPositionUpdate = throttle((groupPosition, tables) => {
     // Enviar la posición del grupo de tablas durante el arrastre
-    sendDiagramUpdate('tablegroup-position-update', {
-      groupId: props.id,
-      position: groupPosition,
-      isDragging: true // Flag to indicate this is a throttled update during drag
-    });
-
-    // También enviar las posiciones actualizadas de cada tabla del grupo
-    for(const table of tables) {
-      sendDiagramUpdate('table-position-update', {
-        tableId: table.id,
-        position: {
-          x: table.x,
-          y: table.y
-        },
+    if (window.sendRoomDiagramUpdate) {
+      window.sendRoomDiagramUpdate('tablegroup-position-update', {
+        groupId: props.id,
+        position: groupPosition,
         isDragging: true // Flag to indicate this is a throttled update during drag
       });
+
+      // También enviar las posiciones actualizadas de cada tabla del grupo
+      for(const table of tables) {
+        window.sendRoomDiagramUpdate('table-position-update', {
+          tableId: table.id,
+          position: {
+            x: table.x,
+            y: table.y
+          },
+          isDragging: true // Flag to indicate this is a throttled update during drag
+        });
+      }
+    } else {
+      sendDiagramUpdate('tablegroup-position-update', {
+        groupId: props.id,
+        position: groupPosition,
+        isDragging: true // Flag to indicate this is a throttled update during drag
+      });
+
+      // También enviar las posiciones actualizadas de cada tabla del grupo
+      for(const table of tables) {
+        sendDiagramUpdate('table-position-update', {
+          tableId: table.id,
+          position: {
+            x: table.x,
+            y: table.y
+          },
+          isDragging: true // Flag to indicate this is a throttled update during drag
+        });
+      }
     }
   }, 50); // Send at most one update every 50ms
 
@@ -169,25 +189,48 @@ console.log(tableStates);
     
     // Enviar actualización final con la posición exacta al soltar
     // Enviar la posición final del grupo de tablas
-    sendDiagramUpdate('tablegroup-position-update', {
-      groupId: props.id,
-      position: {
-        x: state.value.x,
-        y: state.value.y
-      },
-      isDragging: false // Final position update
-    });
-
-    // También enviar las posiciones actualizadas de cada tabla del grupo
-    for(const table of affectedTables.value) {
-      sendDiagramUpdate('table-position-update', {
-        tableId: table.id,
+    if (window.sendRoomDiagramUpdate) {
+      window.sendRoomDiagramUpdate('tablegroup-position-update', {
+        groupId: props.id,
         position: {
-          x: table.x,
-          y: table.y
+          x: state.value.x,
+          y: state.value.y
         },
         isDragging: false // Final position update
       });
+
+      // También enviar las posiciones actualizadas de cada tabla del grupo
+      for(const table of affectedTables.value) {
+        window.sendRoomDiagramUpdate('table-position-update', {
+          tableId: table.id,
+          position: {
+            x: table.x,
+            y: table.y
+          },
+          isDragging: false // Final position update
+        });
+      }
+    } else {
+      sendDiagramUpdate('tablegroup-position-update', {
+        groupId: props.id,
+        position: {
+          x: state.value.x,
+          y: state.value.y
+        },
+        isDragging: false // Final position update
+      });
+
+      // También enviar las posiciones actualizadas de cada tabla del grupo
+      for(const table of affectedTables.value) {
+        sendDiagramUpdate('table-position-update', {
+          tableId: table.id,
+          position: {
+            x: table.x,
+            y: table.y
+          },
+          isDragging: false // Final position update
+        });
+      }
     }
     
     // Reset drag offset and remove event listeners
