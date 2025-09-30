@@ -7,7 +7,7 @@
   "private": true,
   "scripts": {
     "dev": "npx quasar dev",
-    "build": "npx @quasar/cli build -m spa",
+    "build": "npx @quasar/app-webpack build -m spa",
     "build:pwa": "npx quasar build -m pwa",
     "lint": "eslint --ext .js,.ts,.vue ./",
     "test": "echo \"No test specified\" && exit 0",
