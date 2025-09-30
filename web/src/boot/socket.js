@@ -2,7 +2,9 @@ import { io } from 'socket.io-client';
 import { boot } from 'quasar/wrappers';
 import { getSocketUrl } from '../config/socket.config.js';
 
-const socket = io(getSocketUrl());
+// Usar variable de entorno si está disponible, sino usar detección automática
+const socketUrl = process.env.SOCKET_URL || getSocketUrl();
+const socket = io(socketUrl);
 let currentProjectId = null;
 
 // Exportar la instancia del socket para que se pueda usar directamente

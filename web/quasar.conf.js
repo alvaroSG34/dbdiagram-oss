@@ -40,8 +40,8 @@ module.exports = configure(function (ctx) {
       env: {
         ...require("dotenv").config().parsed,
         // Variables de entorno específicas para el build
-        API_BASE_URL: process.env.API_BASE_URL || 'https://brave-strength-production.up.railway.app/api',
-        SOCKET_URL: process.env.SOCKET_URL || 'wss://brave-strength-production.up.railway.app'
+        API_BASE_URL: process.env.API_BASE_URL || (ctx.dev ? 'http://localhost:3002/api' : 'https://brave-strength-production.up.railway.app/api'),
+        SOCKET_URL: process.env.SOCKET_URL || (ctx.dev ? 'ws://localhost:3002' : 'wss://brave-strength-production.up.railway.app')
       },
       publicPath: '/',
       vueRouterMode: "history",
@@ -55,6 +55,13 @@ module.exports = configure(function (ctx) {
       port: 3210,
       open: true // opens browser window automatically
     },
+    // Configuración para desarrollo
+    ...(ctx.dev && {
+      env: {
+        API_BASE_URL: 'http://localhost:3002/api',
+        SOCKET_URL: 'ws://localhost:3002'
+      }
+    }),
     framework: {
       config: {
 

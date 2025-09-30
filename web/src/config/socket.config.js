@@ -3,13 +3,13 @@ export const socketConfig = {
   // Para desarrollo local
   development: {
     host: 'localhost',
-    port: '3003'  // Mismo puerto que la API
+    port: '3002'  // Mismo puerto que la API
   },
   
   // Para red local (cambiar por tu IP local)
   network: {
     host: '192.168.1.100', // CAMBIA ESTA IP POR TU IP LOCAL
-    port: '3003'  // Mismo puerto que la API
+    port: '3002'  // Mismo puerto que la API
   },
   
   // Para producción
@@ -42,7 +42,7 @@ export const getSocketUrl = () => {
 };
 
 // Para configuración manual (útil para desarrollo)
-export const getManualSocketUrl = (host = 'localhost', port = '3001') => {
+export const getManualSocketUrl = (host = 'localhost', port = '3002') => {
   const url = `http://${host}:${port}`;
   return url;
 };
