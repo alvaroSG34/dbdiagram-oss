@@ -36,6 +36,17 @@
           flat
           dense
           round
+          icon="image"
+          @click="triggerImageUpload"
+          class="q-mr-xs"
+        >
+          <q-tooltip>Upload Diagram Image</q-tooltip>
+        </q-btn>
+        
+        <q-btn
+          flat
+          dense
+          round
           icon="settings"
           @click="showSettings = true"
           class="q-mr-xs"
@@ -193,8 +204,63 @@
 
     <!-- Input Area (solo visible cuando expanded) -->
     <div v-show="isVisible" class="chat-input-area">
+      <!-- Image Upload Area -->
+      <div 
+        v-if="showImageUpload" 
+        class="chat-image-upload"
+        :class="{ 'drag-over': isDragOver }"
+        @drop="handleImageDrop"
+        @dragover.prevent="isDragOver = true"
+        @dragleave="isDragOver = false"
+        @click="triggerImageUpload"
+      >
+        <div class="upload-content">
+          <q-icon name="cloud_upload" size="48px" color="primary" />
+          <div class="upload-text">
+            <div class="text-h6">Upload Diagram Image</div>
+            <div class="text-caption">Drag & drop or click to select an image</div>
+            <div class="text-caption text-grey-6">Supports: JPG, PNG, GIF, WebP (Max 10MB)</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Image Preview -->
+      <div v-if="uploadedImage" class="chat-image-preview">
+        <div class="image-preview-header">
+          <q-icon name="image" class="q-mr-xs" />
+          <span>Uploaded Image</span>
+          <q-spacer />
+          <q-btn
+            flat
+            dense
+            round
+            icon="close"
+            size="sm"
+            @click="clearUploadedImage"
+          />
+        </div>
+        <div class="image-preview-container">
+          <img :src="uploadedImage" alt="Uploaded diagram" class="preview-image" />
+        </div>
+        <div class="image-preview-actions">
+          <q-btn
+            color="primary"
+            icon="smart_toy"
+            label="Convert to DBML"
+            @click="convertImageToDbml"
+            :loading="isAnalyzingImage"
+            :disable="isAnalyzingImage"
+          />
+          <q-btn
+            flat
+            label="Try Again"
+            @click="triggerImageUpload"
+          />
+        </div>
+      </div>
+
       <!-- Quick suggestions -->
-      <div v-if="showSuggestions && suggestions.length && !currentMessage.trim()" class="chat-suggestions">
+      <div v-if="showSuggestions && suggestions.length && !currentMessage.trim() && !showImageUpload && !uploadedImage" class="chat-suggestions">
         <div class="chat-suggestions-title">Quick start:</div>
         <div class="chat-suggestions-chips">
           <q-chip
@@ -211,7 +277,16 @@
         </div>
       </div>
 
-      <div class="chat-input-container">
+      <!-- Hidden file input -->
+      <input
+        ref="fileInput"
+        type="file"
+        accept="image/*"
+        @change="handleImageSelect"
+        style="display: none"
+      />
+
+      <div v-if="!showImageUpload && !uploadedImage" class="chat-input-container">
         <q-input
           v-model="currentMessage"
           placeholder="Describe your database schema... (e.g., 'Create tables for users, roles, and permissions')"
@@ -316,6 +391,13 @@ const selectedProvider = ref('gemini')
 const apiKeyInput = ref('')
 const autoScroll = ref(true)
 const showTimestamps = ref(true)
+
+// Image upload state
+const showImageUpload = ref(false)
+const isDragOver = ref(false)
+const uploadedImage = ref(null)
+const isAnalyzingImage = ref(false)
+const fileInput = ref(null)
 
 // Información del proveedor AI
 const providerInfo = ref({
@@ -1034,6 +1116,315 @@ const saveSettings = () => {
     type: 'positive',
     message: 'Settings saved!',
     position: 'top-right'
+  })
+}
+
+// Image upload functions
+const triggerImageUpload = () => {
+  if (fileInput.value) {
+    fileInput.value.click()
+  }
+}
+
+const handleImageSelect = (event) => {
+  const file = event.target.files[0]
+  if (file) {
+    processImageFile(file)
+  }
+}
+
+const handleImageDrop = (event) => {
+  event.preventDefault()
+  isDragOver.value = false
+  
+  const files = event.dataTransfer.files
+  if (files.length > 0) {
+    processImageFile(files[0])
+  }
+}
+
+const processImageFile = (file) => {
+  // Validate file type
+  const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+  if (!validTypes.includes(file.type)) {
+    $q.notify({
+      type: 'negative',
+      message: 'Please select a valid image file (JPG, PNG, GIF, WebP)',
+      position: 'top-right'
+    })
+    return
+  }
+  
+  // Validate file size (10MB max)
+  const maxSize = 10 * 1024 * 1024 // 10MB
+  if (file.size > maxSize) {
+    $q.notify({
+      type: 'negative',
+      message: 'Image size must be less than 10MB',
+      position: 'top-right'
+    })
+    return
+  }
+  
+  // Create preview
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    uploadedImage.value = e.target.result
+    showImageUpload.value = false
+    showSuggestions.value = false
+  }
+  reader.readAsDataURL(file)
+}
+
+const clearUploadedImage = () => {
+  uploadedImage.value = null
+  showImageUpload.value = false
+  showSuggestions.value = true
+  if (fileInput.value) {
+    fileInput.value.value = ''
+  }
+}
+
+const convertImageToDbml = async () => {
+  if (!uploadedImage.value) return
+  
+  isAnalyzingImage.value = true
+  
+  try {
+    // Convert base64 to blob for API calls
+    const response = await fetch(uploadedImage.value)
+    const blob = await response.blob()
+    
+    // Analyze image with selected provider
+    const result = await analyzeImageWithProvider(blob, selectedProvider.value)
+    
+    const assistantMessage = {
+      id: Date.now(),
+      type: 'assistant',
+      content: result.explanation || `I've analyzed your diagram image and generated the corresponding DBML code.`,
+      dbml: result.dbmlCode,
+      provider: result.provider,
+      duration: result.duration,
+      timestamp: new Date()
+    }
+    
+    messages.value.push(assistantMessage)
+    
+    // Auto-insert if it's the first generation
+    if (messages.value.filter(m => m.type === 'assistant').length === 1) {
+      const shouldAutoInsert = await $q.dialog({
+        title: 'Insert Generated DBML?',
+        message: 'Would you like to insert this generated DBML into the editor?',
+        ok: 'Yes, Insert',
+        cancel: 'No, Keep in Chat'
+      })
+      
+      if (shouldAutoInsert) {
+        insertDbml(result.dbmlCode, 'append')
+      }
+    }
+    
+    // Clear the uploaded image after successful conversion
+    clearUploadedImage()
+    
+  } catch (error) {
+    console.error('Error analyzing image:', error)
+    
+    const errorMessage = {
+      id: Date.now(),
+      type: 'system',
+      content: `Sorry, there was an error analyzing the image: ${error.message}. Please try again or check your API configuration.`,
+      timestamp: new Date()
+    }
+    
+    messages.value.push(errorMessage)
+  }
+  
+  isAnalyzingImage.value = false
+  await scrollToBottom()
+}
+
+// Analyze image with selected provider
+const analyzeImageWithProvider = async (imageBlob, provider = selectedProvider.value) => {
+  const providerString = typeof provider === 'object' ? provider.value || provider : provider
+  console.log('Analyzing image with provider:', providerString)
+  
+  const startTime = Date.now()
+  
+  try {
+    if (providerString === 'openai') {
+      return await analyzeWithOpenAIVision(imageBlob, startTime)
+    } else if (providerString === 'gemini') {
+      return await analyzeWithGeminiVision(imageBlob, startTime)
+    } else {
+      throw new Error(`Image analysis not supported for provider: ${providerString}`)
+    }
+  } catch (error) {
+    console.error(`Error with ${providerString} vision:`, error)
+    throw error
+  }
+}
+
+// Analyze with OpenAI Vision
+const analyzeWithOpenAIVision = async (imageBlob, startTime) => {
+  const apiKey = localStorage.getItem('ai_openai_key')
+  
+  if (!apiKey) {
+    throw new Error('OpenAI API key not configured. Please add your API key in the settings.')
+  }
+  
+  // Convert blob to base64
+  const base64 = await blobToBase64(imageBlob)
+  
+  const systemPrompt = `You are an expert database architect. Analyze this database diagram image and convert it to valid DBML code.
+
+IMPORTANT RULES:
+1. Generate ONLY valid DBML code, no explanations
+2. Use English names for tables and fields (snake_case)
+3. Always include primary keys with [pk, increment]
+4. Add timestamps: created_at, updated_at with [default: \`now()\`]
+5. References (Ref) must go OUTSIDE tables, not inside
+6. Use format: Ref: table1.field > table2.field
+7. For many-to-many relationships, create intermediate tables
+8. If you see existing tables, don't duplicate them - only create new ones requested
+
+Look for:
+- Table names and their fields
+- Data types (integer, varchar, text, etc.)
+- Primary keys and foreign keys
+- Relationships between tables
+- Constraints and indexes
+
+Generate clean, well-structured DBML code.`
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { 
+          role: 'user', 
+          content: [
+            { type: 'text', text: 'Analyze this database diagram and convert it to DBML:' },
+            { 
+              type: 'image_url', 
+              image_url: { 
+                url: `data:image/jpeg;base64,${base64}`,
+                detail: 'high'
+              } 
+            }
+          ]
+        }
+      ],
+      max_tokens: 2000,
+      temperature: 0.1
+    })
+  })
+  
+  if (!response.ok) {
+    const errorData = await response.json()
+    throw new Error(`OpenAI Vision API Error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`)
+  }
+  
+  const result = await response.json()
+  const dbmlCode = result.choices[0].message.content.trim()
+  
+  return {
+    success: true,
+    dbmlCode: extractDbmlCode(dbmlCode),
+    explanation: `Analyzed using OpenAI GPT-4o Vision (${result.usage?.total_tokens || 'N/A'} tokens)`,
+    provider: 'openai',
+    duration: Date.now() - startTime
+  }
+}
+
+// Analyze with Gemini Vision
+const analyzeWithGeminiVision = async (imageBlob, startTime) => {
+  const apiKey = localStorage.getItem('ai_gemini_key')
+  
+  if (!apiKey) {
+    throw new Error('Gemini API key not configured. Please add your API key in the settings.')
+  }
+  
+  // Convert blob to base64
+  const base64 = await blobToBase64(imageBlob)
+  
+  const systemPrompt = `You are an expert database architect. Analyze this database diagram image and convert it to valid DBML code.
+
+IMPORTANT RULES:
+1. Generate ONLY valid DBML code, no explanations
+2. Use English names for tables and fields (snake_case)
+3. Always include primary keys with [pk, increment]
+4. Add timestamps: created_at, updated_at with [default: \`now()\`]
+5. References (Ref) must go OUTSIDE tables, not inside
+6. Use format: Ref: table1.field > table2.field
+7. For many-to-many relationships, create intermediate tables
+
+Look for:
+- Table names and their fields
+- Data types (integer, varchar, text, etc.)
+- Primary keys and foreign keys
+- Relationships between tables
+- Constraints and indexes
+
+Generate clean, well-structured DBML code.`
+
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      contents: [{
+        parts: [
+          { text: systemPrompt },
+          {
+            inline_data: {
+              mime_type: imageBlob.type,
+              data: base64
+            }
+          }
+        ]
+      }],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 2000,
+      }
+    })
+  })
+  
+  if (!response.ok) {
+    const errorData = await response.json()
+    throw new Error(`Gemini Vision API Error: ${response.status} - ${errorData.error?.message || 'Unknown error'}`)
+  }
+  
+  const result = await response.json()
+  const dbmlCode = result.candidates?.[0]?.content?.parts?.[0]?.text || ''
+  
+  return {
+    success: true,
+    dbmlCode: extractDbmlCode(dbmlCode),
+    explanation: 'Analyzed using Google Gemini 2.0 Flash Vision (Free)',
+    provider: 'gemini',
+    duration: Date.now() - startTime
+  }
+}
+
+// Utility function to convert blob to base64
+const blobToBase64 = (blob) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const base64 = reader.result.split(',')[1]
+      resolve(base64)
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
   })
 }
 
