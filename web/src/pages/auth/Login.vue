@@ -181,7 +181,7 @@ export default {
     }
 
     const goToRegister = () => {
-      router.push('/auth/register')
+      router.push('/register')
     }
 
     return {

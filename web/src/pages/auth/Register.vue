@@ -244,7 +244,7 @@ export default {
     }
 
     const goToLogin = () => {
-      router.push('/auth/login')
+      router.push('/login')
     }
 
     return {

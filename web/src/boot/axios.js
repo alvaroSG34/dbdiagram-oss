@@ -50,7 +50,7 @@ api.interceptors.response.use(
       
       // Redirect to login if not already there
       if (!window.location.pathname.includes('/auth/')) {
-        window.location.href = '/auth/login'
+        window.location.href = '/login'
       }
     }
     

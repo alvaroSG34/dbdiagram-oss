@@ -274,7 +274,7 @@ export default {
         persistent: true
       }).onOk(async () => {
         await authStore.logout()
-        router.push('/auth/login')
+        router.push('/login')
       })
     }
 
