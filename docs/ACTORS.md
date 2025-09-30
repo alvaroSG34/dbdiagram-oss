@@ -3,7 +3,7 @@
 Este documento describe los actores (humanos y componentes del sistema) involucrados en la aplicación `dbdiagram-oss`, sus responsabilidades principales, puntos de integración en el código y eventos/claves de datos importantes.
 
 ## Resumen
-La aplicación es una SPA (Quasar + Vue) con colaboración en tiempo real a través de un servidor WebSocket (`api/socketServer.js`). El motor de diagramas está en `web/src/components/VDbChart` (JointJS + componentes Vue). El formato principal es DBML y hay un parser/extension en `web/src/proposed-extension`.
+La aplicación es una SPA (Quasar + Vue) con colaboración en tiempo real a través de un servidor unificado (`api/authServer.js`). El motor de diagramas está en `web/src/components/VDbChart` (JointJS + componentes Vue). El formato principal es DBML y hay un parser/extension en `web/src/proposed-extension`.
 
 ---
 
@@ -25,7 +25,7 @@ La aplicación es una SPA (Quasar + Vue) con colaboración en tiempo real a trav
 
 - Administrador / Desarrollador del sistema
   - Descripción: Persona que mantiene el servidor (WebSocket/API) y la base de datos.
-  - Responsabilidades: Desplegar y mantener `api/socketServer.js`, gestionar la BD (Postgres) y reparar problemas de sincronización.
+  - Responsabilidades: Desplegar y mantener `api/authServer.js`, gestionar la BD (Postgres) y reparar problemas de sincronización.
 
 ---
 
@@ -52,7 +52,7 @@ La aplicación es una SPA (Quasar + Vue) con colaboración en tiempo real a trav
   - Responsabilidades: Conectar, reintentar, emitir/escuchar eventos, manejar autenticación (token) y room codes.
 
 - WebSocket Server (Colaboración en tiempo real)
-  - Archivos clave: `api/socketServer.js`
+  - Archivos clave: `api/authServer.js`
   - Rol: Broker de eventos para la colaboración en sala (room-based).
   - Responsabilidades:
     - Autenticar clientes WebSocket.
@@ -116,7 +116,7 @@ La aplicación es una SPA (Quasar + Vue) con colaboración en tiempo real a trav
 
 1. Usuario arrastra una tabla en `VDbTable.vue`.
 2. `VDbTable` calcula la posición (x,y) y llama a `sendPositionUpdate`.
-3. Si está en modo sala, se emite `table-position-update` a `api/socketServer.js` con `room_code` y `payload`.
+3. Si está en modo sala, se emite `table-position-update` a `api/authServer.js` con `room_code` y `payload`.
 4. El servidor valida la membresía en la sala y retransmite el evento a los demás sockets en la sala.
 5. Cada cliente recibe el evento y `Editor/Index.vue` delega la actualización a `DbmlGraph.vue` (por ejemplo, con `window.handleTablePositionUpdate(data)`).
 6. `DbmlGraph` actualiza el store (chart) y el renderizador mueve la tabla en la UI.
@@ -126,7 +126,7 @@ La aplicación es una SPA (Quasar + Vue) con colaboración en tiempo real a trav
 ## Casos límite y consideraciones
 
 - Eventos propios: Los clientes normalmente ignoran eventos que provienen del mismo `userId` (para evitar reaplicaciones), pero en pruebas es útil poder procesarlos.
-- Conexiones intermitentes: `socket.config` y `socketServer.js` deben manejar reconexión y re-sincronización del contenido.
+- Conexiones intermitentes: `socket.config` y `authServer.js` deben manejar reconexión y re-sincronización del contenido.
 - Integridad del contenido: Si dos usuarios editan DBML concurrentemente, existe riesgo de sobreescritura. Actualmente el diseño reescribe `room.currentContent` cuando se guardan cambios (ver `relationship-type-update` y handler en editor store).
 - Seguridad: Autenticación en WebSocket; el servidor comprueba `socket.currentRoom` y `userId` antes de aceptar actualizaciones.
 

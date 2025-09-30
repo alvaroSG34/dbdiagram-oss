@@ -3,19 +3,19 @@ export const socketConfig = {
   // Para desarrollo local
   development: {
     host: 'localhost',
-    port: '3001'
+    port: '3002'  // Mismo puerto que la API
   },
   
   // Para red local (cambiar por tu IP local)
   network: {
     host: '192.168.1.100', // CAMBIA ESTA IP POR TU IP LOCAL
-    port: '3001'
+    port: '3002'  // Mismo puerto que la API
   },
   
   // Para producción
   production: {
     host: window.location.hostname,
-    port: '3001'
+    port: '3002'  // Mismo puerto que la API
   }
 };
 

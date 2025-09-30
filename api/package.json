@@ -6,8 +6,6 @@
   "scripts": {
     "start": "node authServer.js",
     "dev": "nodemon authServer.js",
-    "socket": "node socketServer.js",
-    "dev:socket": "nodemon socketServer.js",
     "init-db": "psql -U $DB_USER -d $DB_NAME -f database/schema.sql"
   },
   "dependencies": {

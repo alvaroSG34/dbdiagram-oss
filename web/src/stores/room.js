@@ -160,7 +160,7 @@ export const useRoomStore = defineStore('room', {
 
       // Importar socket.io-client dinámicamente
       import('socket.io-client').then(({ io }) => {
-        this.socket = io('http://localhost:3001', {
+        this.socket = io('http://localhost:3002', {
           auth: {
             token: token,
             roomId: roomId

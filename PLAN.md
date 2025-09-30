@@ -25,7 +25,7 @@ dbdiagram-oss is an open source alternative to dbdiagram.io, providing database 
   - Uses JointJS for rendering diagrams.
   - DBML parsing and export handled via custom logic and extensions in `web/src/proposed-extension/`.
 - **Collaboration:**  
-  - Real-time user presence and sync via WebSocket (`api/socketServer.js` and `web/src/boot/socket.js`).
+  - Real-time user presence and sync via WebSocket (`api/authServer.js` and `web/src/boot/socket.js`).
 - **State Management:**  
   - Uses Pinia (`web/src/boot/pinia.js`) for Vue state management.
 - **Internationalization:**  
@@ -51,7 +51,7 @@ dbdiagram-oss is an open source alternative to dbdiagram.io, providing database 
     ```
     cd api
     npm install
-    node socketServer.js
+    node authServer.js
     ```
 - **Linting:**  
   - ESLint config in `web/.eslintrc.js`.  
@@ -73,7 +73,7 @@ dbdiagram-oss is an open source alternative to dbdiagram.io, providing database 
 - **Styling:**  
   - SCSS modules per feature in `web/src/css/`.
 - **Socket Events:**  
-  - Custom events for user sync; see `api/socketServer.js` and `web/src/boot/socket.js`.
+  - Custom events for user sync; see `api/authServer.js` and `web/src/boot/socket.js`.
 
 ---
 
@@ -121,7 +121,7 @@ dbdiagram-oss is an open source alternative to dbdiagram.io, providing database 
 - **`web/src/boot/socket.js`**  
   Initializes and manages WebSocket connections for real-time collaboration. Handles custom events for user sync and diagram updates.
 
-- **`api/socketServer.js`**  
+- **`api/authServer.js`**  
   Node.js backend for WebSocket communication. Manages user sessions, broadcasts diagram changes, and handles collaboration logic.
 
 - **`web/quasar.conf.js`**  
@@ -146,7 +146,7 @@ dbdiagram-oss is an open source alternative to dbdiagram.io, providing database 
 ---
 
 **Tip:**  
-When adding new features, locate the relevant directory by feature (e.g., diagram logic in `VDbChart/`, editor logic in `DbmlEditor.vue`, backend sync in `socketServer.js`).  
+When adding new features, locate the relevant directory by feature (e.g., diagram logic in `VDbChart/`, editor logic in `DbmlEditor.vue`, backend sync in `authServer.js`).  
 
 ---
 

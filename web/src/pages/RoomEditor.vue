@@ -386,7 +386,7 @@ export default {
         const authToken = localStorage.getItem('auth_token')
         console.log('🔐 Conectando con token:', authToken ? 'Token presente' : 'Sin token')
         
-        socket.value = io('http://localhost:3001', {
+        socket.value = io('http://localhost:3002', {
           auth: {
             token: authToken
           },

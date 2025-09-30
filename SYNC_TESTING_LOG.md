@@ -9,7 +9,7 @@
 
 ### 2. **Logs Detallados Añadidos**
 
-#### Servidor (api/socketServer.js):
+#### Servidor (api/authServer.js - Unificado):
 - ✅ **table-position-update**: Logs detallados con emoji y información completa
 - ✅ **tablegroup-position-update**: Logs detallados con emoji y información completa
 - ✅ Información de usuarios conectados y propagación
@@ -46,7 +46,7 @@
    📡 [CLIENT] Enviando posición final via socket de sala
    ```
 
-2. **socketServer.js** (Servidor):
+2. **authServer.js** (Servidor Unificado):
    ```
    🔥 === MOVIMIENTO DE TABLA ===
    📦 Usuario: username (ID: userId)
@@ -90,7 +90,7 @@
 ```bash
 cd api
 npm install
-node socketServer.js
+node authServer.js
 ```
 
 ### 2. Iniciar el cliente:
