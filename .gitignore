@@ -6,3 +6,6 @@ web/api-config.local.js
 **/*.local.js
 *.env.local
 api/test-cors.js
+web/env.example
+api/env.example
+web/env.example

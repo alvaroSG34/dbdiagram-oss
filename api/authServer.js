@@ -35,22 +35,19 @@ const corsOptions = {
     // Permitir requests sin origin (mobile apps, etc.)
     if (!origin) return callback(null, true);
     
-    const allowedOrigins = process.env.NODE_ENV === 'production' 
-      ? [
-          process.env.FRONTEND_URL,
-          'https://dbdiagram-ashy.vercel.app',  // Dominio de Vercel
-          'https://dbdiagram-oss.vercel.app'    // Dominio alternativo
-        ] 
+    // Lista de orígenes permitidos desde variable de entorno o lista por defecto
+    const allowedOrigins = process.env.ALLOWED_ORIGINS 
+      ? process.env.ALLOWED_ORIGINS.split(',').map(url => url.trim())
       : [
           'http://localhost:8080', 
           'http://localhost:9000', 
           'http://127.0.0.1:8080',
-          'http://localhost:3001',  // WebSocket server
-          'http://127.0.0.1:3001',  // WebSocket server alternate
-          'http://localhost:3210',  // Vue.js frontend
-          'http://127.0.0.1:3210',  // Vue.js frontend alternate
-          'https://dbdiagram-ashy.vercel.app',  // Dominio de Vercel para desarrollo
-          'https://dbdiagram-oss.vercel.app'    // Dominio alternativo para desarrollo
+          'http://localhost:3001',
+          'http://127.0.0.1:3001',
+          'http://localhost:3210',
+          'http://127.0.0.1:3210',
+          'https://dbdiagram-ashy.vercel.app',
+          'https://dbdiagram-oss.vercel.app'
         ];
     
     if (allowedOrigins.indexOf(origin) !== -1) {
@@ -74,12 +71,8 @@ app.use(cors(corsOptions));
 // Inicializar Socket.IO en el servidor
 const io = new Server(server, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
-      ? [
-          process.env.FRONTEND_URL,
-          'https://dbdiagram-ashy.vercel.app',  // Dominio de Vercel
-          'https://dbdiagram-oss.vercel.app'    // Dominio alternativo
-        ] 
+    origin: process.env.ALLOWED_ORIGINS 
+      ? process.env.ALLOWED_ORIGINS.split(',').map(url => url.trim())
       : [
           'http://localhost:8080', 
           'http://localhost:9000', 
@@ -88,8 +81,8 @@ const io = new Server(server, {
           'http://127.0.0.1:3001',
           'http://localhost:3210',
           'http://127.0.0.1:3210',
-          'https://dbdiagram-ashy.vercel.app',  // Dominio de Vercel para desarrollo
-          'https://dbdiagram-oss.vercel.app'    // Dominio alternativo para desarrollo
+          'https://dbdiagram-ashy.vercel.app',
+          'https://dbdiagram-oss.vercel.app'
         ],
     methods: ['GET', 'POST']
   }

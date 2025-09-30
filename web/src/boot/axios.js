@@ -8,14 +8,9 @@ import axios from 'axios'
 // "export default () => {}" function below (which runs individually
 // for each client)
 
-// Configuración dinámica para desarrollo y producción
+// Configuración dinámica usando variable de entorno
 const getBaseURL = () => {
-  // En producción, usar variables de entorno o URL relativa
-  if (process.env.NODE_ENV === 'development') {
-    return process.env.API_BASE_URL || 'https://brave-strength-production.up.railway.app/api'
-  }
-  // En desarrollo, usar localhost con puerto correcto
-  return 'http://localhost:3003/api'
+  return process.env.API_BASE_URL || 'https://brave-strength-production.up.railway.app/api'
 }
 
 const api = axios.create({
