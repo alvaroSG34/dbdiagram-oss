@@ -34,6 +34,7 @@
   "devDependencies": {
     "@babel/eslint-parser": "^7.17.0",
     "@quasar/app-webpack": "^3.4.7",
+    "@quasar/cli": "^2.5.0",
     "dotenv": "^16.0.0",
     "eslint": "^7.14.0",
     "eslint-config-standard": "^16.0.2",
