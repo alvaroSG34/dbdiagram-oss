@@ -819,15 +819,59 @@ Ref: order_items.product_id > products.id`
   }
 }
 
+// Función para limpiar código DBML generado por IA
+const cleanDbmlCode = (dbmlCode) => {
+  console.log('🧹 Limpiando código DBML generado por IA...')
+  console.log('📝 Código original:', dbmlCode)
+  
+  // Limpiar el código línea por línea
+  const cleanedLines = dbmlCode.split('\n').map(line => {
+    const trimmedLine = line.trim()
+    
+    // Si es una línea de referencia (Ref:)
+    if (trimmedLine.toLowerCase().startsWith('ref:')) {
+      // Eliminar nombres de relación: [rel: nombre] al inicio
+      let cleanedLine = trimmedLine.replace(/\[rel:\s*[^\]]+\]\s*/gi, '')
+      
+      // Eliminar cardinalidades y etiquetas después del operador
+      // Formatos a limpiar:
+      // - [card: 1:*] o [cardinality: 1:*]
+      // - [name: user_posts] o [rel_name: user_posts]
+      // - {card: 1:*} o {name: user_posts}
+      // - (card: 1:*) o (name: user_posts)
+      cleanedLine = cleanedLine.replace(/\s*[\[\{\(]\s*(card|cardinality)\s*:\s*[^\]\}\)]+[\]\}\)]/gi, '')
+      cleanedLine = cleanedLine.replace(/\s*[\[\{\(]\s*(name|rel_name|relationship_name)\s*:\s*[^\]\}\)]+[\]\}\)]/gi, '')
+      
+      // Eliminar metadata adicional al final de la línea
+      cleanedLine = cleanedLine.replace(/\s*\/\/.*$/, '') // Comentarios
+      cleanedLine = cleanedLine.replace(/\s*;.*$/, '')    // Punto y coma
+      
+      // Limpiar espacios múltiples
+      cleanedLine = cleanedLine.replace(/\s+/g, ' ').trim()
+      
+      console.log(`🔧 Línea limpiada: "${trimmedLine}" -> "${cleanedLine}"`)
+      return cleanedLine
+    }
+    
+    return line
+  }).join('\n')
+  
+  console.log('✅ Código limpio:', cleanedLines)
+  return cleanedLines
+}
+
 const insertDbml = (dbmlCode, mode = 'append') => {
   try {
+    // Limpiar el código DBML antes de insertarlo
+    const cleanedDbmlCode = cleanDbmlCode(dbmlCode)
+    
     const currentDbml = editorStore.source.text || ''
     let newDbml
     
     if (mode === 'replace' || !currentDbml.trim()) {
-      newDbml = dbmlCode
+      newDbml = cleanedDbmlCode
     } else {
-      newDbml = currentDbml.trim() + '\n\n' + dbmlCode + '\n'
+      newDbml = currentDbml.trim() + '\n\n' + cleanedDbmlCode + '\n'
     }
     
     editorStore.updateSourceText(newDbml)
@@ -840,7 +884,7 @@ const insertDbml = (dbmlCode, mode = 'append') => {
       timeout: 2000
     })
     
-    emit('dbml-inserted', { dbmlCode, mode })
+    emit('dbml-inserted', { dbmlCode: cleanedDbmlCode, mode })
     
     // Add system message
     const systemMessage = {

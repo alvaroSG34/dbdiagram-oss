@@ -167,32 +167,55 @@ const confirm = () => {
   try {
     const editorStore = useEditorStore();
     let dbml = editorStore.getSourceText;
-      const relationTexts = {
-        association: 'Relación simple',
-        composition: 'Composición: parte no puede existir sin el todo',
-        aggregation: 'Agregación: parte puede existir independientemente',
-        generalization: 'Generalización: herencia o "es-un"',
-      };
-      // Expresión regular para eliminar cualquier comentario de tipo relación previo
-      const relationCommentRegex = /\s*\/\/\s*(Relación simple|Composición: parte no puede existir sin el todo|Agregación: parte puede existir independientemente|Generalización: herencia o "es-un")\s*$/i;
-      dbml = dbml.split('\n').map(line => {
-        if (line.trim().toLowerCase().startsWith('ref:')) {
-          // Quitar cualquier comentario anterior de tipo relación
-          const lineWithoutComment = line.replace(relationCommentRegex, '');
-          const relationType = selectedType.value;
-          const comment = relationTexts[relationType] || '';
-          return lineWithoutComment.trimEnd() + (comment ? ` // ${comment}` : '');
-        }
-        return line;
-      }).join('\n');
+    
+    // IMPORTANTE: El parser DBML estándar solo reconoce '>' como operador válido
+    // Los otros operadores (<>, -, <|--) causan errores de sintaxis
+    // Por eso SIEMPRE usamos '>' en el código DBML y guardamos el tipo visual en metadatos
+    const relationOperators = {
+      association: '>',        // Asociación: tabla1.id > tabla2.id
+      composition: '>',        // Composición: tabla1.id > tabla2.id (visual diferente)
+      aggregation: '>',        // Agregación: tabla1.id > tabla2.id (visual diferente)
+      generalization: '>'      // Generalización: tabla1.id > tabla2.id (visual diferente)
+    };
+    
+    // Expresión regular para eliminar cualquier comentario de tipo relación previo
+    const relationCommentRegex = /\s*\/\/\s*(Relación simple|Composición: parte no puede existir sin el todo|Agregación: parte puede existir independientemente|Generalización: herencia o "es-un")\s*$/i;
+    
+    dbml = dbml.split('\n').map(line => {
+      if (line.trim().toLowerCase().startsWith('ref:')) {
+        // Quitar cualquier comentario anterior de tipo relación
+        let lineWithoutComment = line.replace(relationCommentRegex, '');
+        
+        // Cambiar el operador de relación según el tipo seleccionado
+        const newOperator = relationOperators[selectedType.value] || '>';
+        
+        console.log(`🔧 Procesando línea: "${lineWithoutComment}"`);
+        console.log(`🔧 Tipo seleccionado: "${selectedType.value}" -> operador: "${newOperator}"`);
+        
+        // Como el parser DBML solo acepta '>', no necesitamos cambiar la sintaxis
+        // El tipo visual se guarda en el store y se sincroniza por separado
+        console.log(`🔧 Manteniendo sintaxis DBML estándar (>) y guardando tipo visual en store`);
+        
+        return lineWithoutComment.trimEnd();
+      }
+      return line;
+    }).join('\n');
     // Deshabilitar actualizaciones de BBox mientras se actualiza la relación
     if (window.disableBBoxUpdates) {
       window.disableBBoxUpdates();
     }
     
+    console.log('📝 Actualizando texto DBML en el editor con nuevo operador');
     editorStore.updateSourceText(dbml);
+    
+    // Forzar actualización de la base de datos para que el parser reconozca los cambios
+    editorStore.updateDatabase();
+    
     setTimeout(() => {
-      if (window && window.refreshDbmlGraph) window.refreshDbmlGraph();
+      if (window && window.refreshDbmlGraph) {
+        console.log('🔄 Refrescando diagrama después de cambiar sintaxis DBML');
+        window.refreshDbmlGraph();
+      }
     }, 100);
   } catch (e) {
   }

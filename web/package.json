@@ -19,6 +19,7 @@
     "ace-builds": "^1.4.14",
     "axios": "^1.12.2",
     "core-js": "^3.6.5",
+    "jszip": "^3.10.1",
     "localforage": "^1.10.0",
     "lodash": "^4.17.21",
     "pinia": "^2.0.11",

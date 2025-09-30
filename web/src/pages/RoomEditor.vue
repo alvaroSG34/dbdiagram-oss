@@ -98,6 +98,18 @@
             :loading="saving"
           />
 
+          <!-- Export to SpringBoot Button -->
+          <q-btn
+            color="positive"
+            icon="download"
+            label="Exportar a SpringBoot"
+            @click="exportToSpringBoot"
+            :loading="exporting"
+            class="q-ml-sm"
+          >
+            <q-tooltip>Generar proyecto Spring Boot con CRUD completo</q-tooltip>
+          </q-btn>
+
           <!-- AI Chat Toggle -->
           <q-btn
             flat
@@ -266,6 +278,7 @@ import { useEditorStore } from 'src/store/editor'
 import DbmlEditor from 'src/components/DbmlEditor'
 import DbmlGraph from 'src/components/DbmlGraph'
 import ChatPanel from 'src/components/ChatPanel'
+import { springBootExportService } from 'src/services/springBootExportService'
 import io from 'socket.io-client'
 
 export default {
@@ -289,6 +302,7 @@ export default {
     const loading = ref(true)
     const syncing = ref(false)
     const saving = ref(false)
+    const exporting = ref(false)
     const roomInfo = ref(null)
     const dbmlContent = ref('')
     const lastSavedContent = ref('')
@@ -454,14 +468,16 @@ export default {
           }
         })
 
-        // Handle relationship updates
-        socket.value.on('relationship-type-update', (data) => {
-          if (data.userId !== currentUser.value.id) {
-            handleRelationshipUpdate(data)
-          }
-        })
-
-        // Handle diagram state updates (zoom, pan, position)
+    // Handle relationship updates
+    socket.value.on('relationship-type-update', (data) => {
+      console.log('🔗 [ROOM-EDITOR] Recibido relationship-type-update:', data)
+      if (data.userId !== currentUser.value.id) {
+        console.log('🔗 [ROOM-EDITOR] Procesando actualización de relación de otro usuario')
+        handleRelationshipUpdate(data)
+      } else {
+        console.log('🔗 [ROOM-EDITOR] Ignorando actualización propia')
+      }
+    })        // Handle diagram state updates (zoom, pan, position)
         socket.value.on('diagram-state-update', (data) => {
           if (data.userId !== currentUser.value.id) {
             handleDiagramStateUpdate(data)
@@ -599,6 +615,68 @@ export default {
       return new Date(dateString).toLocaleDateString()
     }
 
+    const exportToSpringBoot = async () => {
+      try {
+        exporting.value = true
+        
+        console.log('🚀 [ROOM-EDITOR] Iniciando exportación a SpringBoot')
+        console.log('📊 Schema actual:', schema.value)
+        console.log('📝 DBML content:', dbmlContent.value)
+        
+        if (!schema.value || !schema.value.tables || schema.value.tables.length === 0) {
+          $q.notify({
+            type: 'warning',
+            message: 'No hay tablas en el diagrama para exportar',
+            position: 'top-right'
+          })
+          return
+        }
+
+        // Debug: verificar estructura de las tablas
+        schema.value.tables.forEach((table, index) => {
+          console.log(`🔍 [ROOM-EDITOR] Tabla ${index}:`, table.name)
+          console.log(`🔍 [ROOM-EDITOR] Campos de ${table.name}:`, table.fields)
+          table.fields.forEach((field, fieldIndex) => {
+            console.log(`🔍 [ROOM-EDITOR] Campo ${fieldIndex}: ${field.name}, tipo:`, field.type)
+          })
+        })
+
+        // Generar el proyecto SpringBoot
+        const zipBlob = await springBootExportService.exportToSpringBoot(schema.value, {
+          packageName: 'com.dbdiagram.generated',
+          artifactId: 'dbdiagram-project',
+          groupId: 'com.dbdiagram'
+        })
+
+        // Crear y descargar el archivo ZIP
+        const url = window.URL.createObjectURL(zipBlob)
+        const a = document.createElement('a')
+        a.style.display = 'none'
+        a.href = url
+        a.download = `springboot-project-${new Date().getTime()}.zip`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+
+        $q.notify({
+          type: 'positive',
+          message: 'Proyecto SpringBoot generado y descargado exitosamente',
+          position: 'top-right'
+        })
+        
+      } catch (error) {
+        console.error('❌ Error al exportar a SpringBoot:', error)
+        $q.notify({
+          type: 'negative',
+          message: 'Error al exportar a SpringBoot: ' + error.message,
+          position: 'top-right'
+        })
+      } finally {
+        exporting.value = false
+      }
+    }
+
     // Flag para evitar bucles infinitos
     const isUpdatingFromSocket = ref(false)
 
@@ -704,6 +782,7 @@ export default {
       loading,
       syncing,
       saving,
+      exporting,
       roomInfo,
       dbmlContent,
       connectedUsers,
@@ -720,6 +799,7 @@ export default {
       currentUser,
       onContentChange,
       saveContent,
+      exportToSpringBoot,
       goBack,
       copyRoomCode,
       getInitials,

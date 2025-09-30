@@ -248,7 +248,13 @@ io.on('connection', (socket) => {
       
       console.log(`🔗 SERVIDOR: Recibido relationship-type-update de ${socket.username}:`, {
         room_code, 
-        relationshipChanges,
+        relationshipChanges: {
+          refId: relationshipChanges?.refId,
+          relationType: relationshipChanges?.relationType,
+          startCardinality: relationshipChanges?.startCardinality,
+          endCardinality: relationshipChanges?.endCardinality,
+          relationshipName: relationshipChanges?.relationshipName
+        },
         socketRoom: socket.currentRoom,
         userId: socket.userId
       });

@@ -233,10 +233,10 @@
 
   // Función para manejar actualizaciones de relaciones - SIMPLIFICADA
   const handleRelationshipUpdate = (data) => {
-    console.log('🔥 handleRelationshipUpdate llamada con:', data)
+    console.log('🔥 [DBML-GRAPH] handleRelationshipUpdate llamada con:', data)
     
     if (!data || !data.relationshipChanges) {
-      console.error('❌ Datos de relación inválidos:', data)
+      console.error('❌ [DBML-GRAPH] Datos de relación inválidos:', data)
       return
     }
     
@@ -250,11 +250,27 @@
       relationshipName 
     } = data.relationshipChanges
     
+    console.log('🔗 [DBML-GRAPH] Datos extraídos:', {
+      refId,
+      relationType,
+      startMarker,
+      endMarker,
+      startCardinality,
+      endCardinality,
+      relationshipName
+    })
+    
     try {
-      console.log('🔗 Actualizando relación:', refId, 'a tipo:', relationType)
+      console.log('🔗 [DBML-GRAPH] Actualizando relación:', refId, 'a tipo:', relationType)
       
       const refStore = chart.getRef(refId)
       if (refStore) {
+        console.log('📊 [DBML-GRAPH] Estado anterior:', {
+          relationType: refStore.relationType,
+          startCardinality: refStore.startCardinality,
+          endCardinality: refStore.endCardinality
+        })
+        
         // Actualizar directamente en el store
         refStore.relationType = relationType
         refStore.startMarker = startMarker  
@@ -263,20 +279,29 @@
         // Actualizar cardinalidades si están presentes
         if (startCardinality !== undefined) {
           refStore.startCardinality = startCardinality
+          console.log('📝 [DBML-GRAPH] Actualizando startCardinality a:', startCardinality)
         }
         if (endCardinality !== undefined) {
           refStore.endCardinality = endCardinality
+          console.log('📝 [DBML-GRAPH] Actualizando endCardinality a:', endCardinality)
         }
         if (relationshipName !== undefined) {
           refStore.relationshipName = relationshipName
+          console.log('📝 [DBML-GRAPH] Actualizando relationshipName a:', relationshipName)
         }
+        
+        console.log('📊 [DBML-GRAPH] Estado después:', {
+          relationType: refStore.relationType,
+          startCardinality: refStore.startCardinality,
+          endCardinality: refStore.endCardinality
+        })
         
         // Forzar re-render
         nextTick(() => {
-          console.log('✅ Relación actualizada exitosamente con cardinalidades')
+          console.log('✅ [DBML-GRAPH] Relación actualizada exitosamente con cardinalidades')
         })
       } else {
-        console.warn('⚠️ No se encontró relación en store:', refId)
+        console.warn('⚠️ [DBML-GRAPH] No se encontró relación en store:', refId)
       }
     } catch (error) {
       console.error('❌ Error actualizando relación:', error)
