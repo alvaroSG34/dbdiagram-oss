@@ -37,7 +37,12 @@ module.exports = configure(function (ctx) {
       "material-icons" // optional, you are not bound to it
     ],
     build: {
-      env: require("dotenv").config().parsed,
+      env: {
+        ...require("dotenv").config().parsed,
+        // Variables de entorno específicas para el build
+        API_BASE_URL: process.env.API_BASE_URL || 'https://brave-strength-production.up.railway.app/api',
+        SOCKET_URL: process.env.SOCKET_URL || 'wss://brave-strength-production.up.railway.app'
+      },
       publicPath: '/',
       vueRouterMode: "history",
       chainWebpack(/* chain */) {

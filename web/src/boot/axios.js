@@ -10,6 +10,8 @@ import axios from 'axios'
 
 // Configuración dinámica usando variable de entorno
 const getBaseURL = () => {
+  // En Quasar, las variables de entorno se acceden a través de process.env
+  // pero solo las que empiezan con QUASAR_APP_ o están definidas en quasar.conf.js
   return process.env.API_BASE_URL || 'https://brave-strength-production.up.railway.app/api'
 }
 
