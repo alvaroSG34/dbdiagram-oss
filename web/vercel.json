@@ -1,8 +1,8 @@
 {
     "version": 2,
-    "buildCommand": "npm run build",
-    "outputDirectory": "dist/spa",
-    "installCommand": "npm install",
+    "buildCommand": "cd web && npm install && npm run build",
+    "outputDirectory": "web/dist/spa",
+    "installCommand": "cd web && npm install",
     "routes": [
       {
         "src": "/(.*)",
