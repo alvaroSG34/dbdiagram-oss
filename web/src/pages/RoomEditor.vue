@@ -46,12 +46,12 @@
                     text-color="white"
                     size="sm"
                   >
-                    {{ getInitials(user.name) }}
+                    {{ getInitials(user.username) }}
                   </q-avatar>
                 </q-item-section>
                 <q-item-section>
                   <q-item-label>
-                    {{ user.name }}
+                    {{ user.username }}
                     <q-chip 
                       v-if="user.userId === currentUser.id"
                       size="xs"

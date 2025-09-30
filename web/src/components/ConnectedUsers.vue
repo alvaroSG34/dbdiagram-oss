@@ -26,11 +26,11 @@
             <q-item v-for="user in usersService.state.users" :key="user.id">
               <q-item-section avatar>
                 <q-avatar :color="user.color" text-color="white">
-                  {{ getUserInitials(user.name) }}
+                  {{ getUserInitials(user.username) }}
                 </q-avatar>
               </q-item-section>
               <q-item-section>
-                <q-item-label>{{ user.name }}</q-item-label>
+                <q-item-label>{{ user.username }}</q-item-label>
                 <q-item-label caption>
                   {{ user.id === usersService.state.currentUser.id ? '(Tú)' : '' }}
                   Conectado: {{ getFormattedTime(user.joinedAt) }}

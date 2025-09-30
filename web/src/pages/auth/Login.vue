@@ -155,7 +155,7 @@ export default {
         if (result.success) {
           $q.notify({
             type: 'positive',
-            message: `¡Bienvenido ${result.user.name}!`,
+            message: `¡Bienvenido ${result.user.username}!`,
             position: 'top'
           })
 

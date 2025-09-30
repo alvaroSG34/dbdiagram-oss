@@ -208,7 +208,7 @@ export default {
 
       try {
         const result = await authStore.register({
-          name: form.value.name.trim(),
+          username: form.value.name.trim(),
           email: form.value.email.toLowerCase().trim(),
           password: form.value.password
         })
@@ -216,7 +216,7 @@ export default {
         if (result.success) {
           $q.notify({
             type: 'positive',
-            message: `¡Bienvenido ${result.user.name}! Tu cuenta ha sido creada exitosamente.`,
+            message: `¡Bienvenido ${result.user.username}! Tu cuenta ha sido creada exitosamente.`,
             position: 'top',
             timeout: 4000
           })

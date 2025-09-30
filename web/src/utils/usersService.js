@@ -28,7 +28,7 @@ function addUser(user) {
   if (!state.users.some(u => u.id === user.id)) {
     state.users.push({
       ...user,
-      name: user.name || `Usuario ${state.users.length + 1}`,
+      name: user.username || `Usuario ${state.users.length + 1}`,
       color: user.color || getRandomColor(),
       joinedAt: user.joinedAt || new Date()
     })
