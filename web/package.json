@@ -6,9 +6,9 @@
   "author": "Dan Spiteri <trudan97@gmail.com>",
   "private": true,
   "scripts": {
-    "dev": "quasar dev",
-    "build": "quasar build",
-    "build:pwa": "quasar build -m pwa",
+    "dev": "npx quasar dev",
+    "build": "npx quasar build",
+    "build:pwa": "npx quasar build -m pwa",
     "lint": "eslint --ext .js,.ts,.vue ./",
     "test": "echo \"No test specified\" && exit 0",
     "deploy": "push-dir --dir=dist/spa --branch=gh-pages"
