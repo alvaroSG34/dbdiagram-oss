@@ -36,7 +36,11 @@ const corsOptions = {
     if (!origin) return callback(null, true);
     
     const allowedOrigins = process.env.NODE_ENV === 'production' 
-      ? [process.env.FRONTEND_URL] 
+      ? [
+          process.env.FRONTEND_URL,
+          'https://dbdiagram-ashy.vercel.app',  // Dominio de Vercel
+          'https://dbdiagram-oss.vercel.app'    // Dominio alternativo
+        ] 
       : [
           'http://localhost:8080', 
           'http://localhost:9000', 
@@ -44,7 +48,9 @@ const corsOptions = {
           'http://localhost:3001',  // WebSocket server
           'http://127.0.0.1:3001',  // WebSocket server alternate
           'http://localhost:3210',  // Vue.js frontend
-          'http://127.0.0.1:3210'   // Vue.js frontend alternate
+          'http://127.0.0.1:3210',  // Vue.js frontend alternate
+          'https://dbdiagram-ashy.vercel.app',  // Dominio de Vercel para desarrollo
+          'https://dbdiagram-oss.vercel.app'    // Dominio alternativo para desarrollo
         ];
     
     if (allowedOrigins.indexOf(origin) !== -1) {
@@ -69,7 +75,11 @@ app.use(cors(corsOptions));
 const io = new Server(server, {
   cors: {
     origin: process.env.NODE_ENV === 'production' 
-      ? [process.env.FRONTEND_URL] 
+      ? [
+          process.env.FRONTEND_URL,
+          'https://dbdiagram-ashy.vercel.app',  // Dominio de Vercel
+          'https://dbdiagram-oss.vercel.app'    // Dominio alternativo
+        ] 
       : [
           'http://localhost:8080', 
           'http://localhost:9000', 
@@ -77,7 +87,9 @@ const io = new Server(server, {
           'http://localhost:3001',
           'http://127.0.0.1:3001',
           'http://localhost:3210',
-          'http://127.0.0.1:3210'
+          'http://127.0.0.1:3210',
+          'https://dbdiagram-ashy.vercel.app',  // Dominio de Vercel para desarrollo
+          'https://dbdiagram-oss.vercel.app'    // Dominio alternativo para desarrollo
         ],
     methods: ['GET', 'POST']
   }

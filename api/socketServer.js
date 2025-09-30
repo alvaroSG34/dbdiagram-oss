@@ -29,7 +29,22 @@ const server = http.createServer((req, res) => {
 // Inicializar Socket.IO en el servidor
 const io = new Server(server, {
   cors: {
-    origin: '*', // En producción, esto debería limitarse a dominios específicos
+    origin: process.env.NODE_ENV === 'production' 
+      ? [
+          'https://dbdiagram-ashy.vercel.app',  // Dominio de Vercel
+          'https://dbdiagram-oss.vercel.app'    // Dominio alternativo
+        ] 
+      : [
+          'http://localhost:8080', 
+          'http://localhost:9000', 
+          'http://127.0.0.1:8080',
+          'http://localhost:3001',
+          'http://127.0.0.1:3001',
+          'http://localhost:3210',
+          'http://127.0.0.1:3210',
+          'https://dbdiagram-ashy.vercel.app',  // Dominio de Vercel para desarrollo
+          'https://dbdiagram-oss.vercel.app'    // Dominio alternativo para desarrollo
+        ],
     methods: ['GET', 'POST']
   }
 });
