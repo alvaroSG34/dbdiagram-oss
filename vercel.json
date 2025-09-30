@@ -1,13 +1,18 @@
 {
   "version": 2,
-  "rootDirectory": "web",
-  "buildCommand": "npm install && npm run build",
-  "outputDirectory": "dist/spa",
-  "installCommand": "npm install",
-  "rewrites": [
+  "builds": [
     {
-      "source": "/((?!js/|css/|fonts/|icons/|img/|favicon.ico|mode-dbml.js|mode-dbml2.js|test-ai-service.js).*)",
-      "destination": "/index.html"
+      "src": "web/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist/spa"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/((?!js/|css/|fonts/|icons/|img/|favicon.ico|mode-dbml.js|mode-dbml2.js|test-ai-service.js).*)",
+      "dest": "/index.html"
     }
   ]
 }
