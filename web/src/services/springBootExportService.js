@@ -55,10 +55,13 @@ export class SpringBootExportService {
       // 8. Generar aplicación principal
       await this.generateMainApplication(zip)
 
-      // 9. Generar archivos de prueba
+      // 9. Generar configuración adicional
+      await this.generateConfigClasses(zip)
+
+      // 10. Generar archivos de prueba
       await this.generateTestFiles(zip, schema.tables)
 
-      // 10. Generar documentación
+      // 11. Generar documentación
       await this.generateDocumentation(zip, schema)
 
       console.log('✅ [SPRINGBOOT-EXPORT] Exportación completada')
@@ -186,6 +189,21 @@ export class SpringBootExportService {
   }
 
   /**
+   * Genera clases de configuración adicionales
+   */
+  async generateConfigClasses(zip) {
+    const packagePath = this.packageName.replace(/\./g, '/')
+    
+    // Configuración de CORS
+    const corsConfigCode = this.generateCorsConfigClass()
+    zip.file(`src/main/java/${packagePath}/config/CorsConfig.java`, corsConfigCode)
+    
+    // Configuración de Swagger/OpenAPI
+    const swaggerConfigCode = this.generateSwaggerConfigClass()
+    zip.file(`src/main/java/${packagePath}/config/SwaggerConfig.java`, swaggerConfigCode)
+  }
+
+  /**
    * Genera archivos de prueba
    */
   async generateTestFiles(zip, tables) {
@@ -235,6 +253,7 @@ export class SpringBootExportService {
     <description>Generated Spring Boot project from DBML diagram</description>
     <properties>
         <java.version>${this.javaVersion}</java.version>
+        <mysql.version>8.0.33</mysql.version>
     </properties>
     <dependencies>
         <dependency>
@@ -257,12 +276,18 @@ export class SpringBootExportService {
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
+            <version>\${mysql.version}</version>
             <scope>runtime</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>2.1.0</version>
         </dependency>
     </dependencies>
 
@@ -281,8 +306,8 @@ export class SpringBootExportService {
    * Genera application.properties
    */
   generateApplicationProperties() {
-    return `# Database Configuration
-spring.datasource.url=jdbc:h2:mem:testdb
+    return `# Database Configuration (H2 for development)
+spring.datasource.url=jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
 spring.datasource.driverClassName=org.h2.Driver
 spring.datasource.username=sa
 spring.datasource.password=password
@@ -292,13 +317,26 @@ spring.jpa.database-platform=org.hibernate.dialect.H2Dialect
 spring.jpa.hibernate.ddl-auto=create-drop
 spring.jpa.show-sql=true
 spring.jpa.format-sql=true
+spring.jpa.properties.hibernate.format_sql=true
 
 # H2 Console (for development)
 spring.h2.console.enabled=true
 spring.h2.console.path=/h2-console
+spring.h2.console.settings.web-allow-others=true
 
 # Server Configuration
-server.port=8080`
+server.port=8080
+server.servlet.context-path=/
+
+# Logging Configuration
+logging.level.org.springframework.web=DEBUG
+logging.level.org.hibernate.SQL=DEBUG
+logging.level.org.hibernate.type.descriptor.sql.BasicBinder=TRACE
+
+# CORS Configuration
+spring.web.cors.allowed-origins=*
+spring.web.cors.allowed-methods=GET,POST,PUT,DELETE,OPTIONS
+spring.web.cors.allowed-headers=*`
   }
 
   /**
@@ -307,7 +345,7 @@ server.port=8080`
   generateApplicationYml() {
     return `spring:
   datasource:
-    url: jdbc:h2:mem:testdb
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     driverClassName: org.h2.Driver
     username: sa
     password: password
@@ -317,13 +355,31 @@ server.port=8080`
       ddl-auto: create-drop
     show-sql: true
     format-sql: true
+    properties:
+      hibernate:
+        format_sql: true
   h2:
     console:
       enabled: true
       path: /h2-console
+      settings:
+        web-allow-others: true
+  web:
+    cors:
+      allowed-origins: "*"
+      allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
+      allowed-headers: "*"
 
 server:
-  port: 8080`
+  port: 8080
+  servlet:
+    context-path: /
+
+logging:
+  level:
+    org.springframework.web: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE`
   }
 
   /**
@@ -336,24 +392,51 @@ server:
     const className = this.capitalize(this.toCamelCase(table.name))
     const packagePath = this.packageName
 
-    let imports = new Set([
-      'javax.persistence.*',
-      'javax.validation.constraints.*',
-      'java.time.LocalDateTime'
+    // Determinar qué imports necesitamos basado en los tipos de campos
+    const neededImports = new Set([
+      'jakarta.persistence.*',
+      'jakarta.validation.constraints.*'
     ])
+
+    // Analizar tipos de campos para determinar imports adicionales
+    table.fields.forEach(field => {
+      const javaType = this.getJavaType(field.type)
+      if (javaType === 'LocalDateTime') {
+        neededImports.add('java.time.LocalDateTime')
+      } else if (javaType === 'LocalDate') {
+        neededImports.add('java.time.LocalDate')
+      } else if (javaType === 'BigDecimal') {
+        neededImports.add('java.math.BigDecimal')
+      } else if (javaType === 'List') {
+        neededImports.add('java.util.List')
+      }
+    })
+
+    const importsList = Array.from(neededImports).sort()
 
     let code = `package ${packagePath}.entity;
 
-import javax.persistence.*;
-import javax.validation.constraints.*;
-import java.time.LocalDateTime;
-import java.util.List;
+${importsList.map(imp => `import ${imp};`).join('\n')}
 
 @Entity
 @Table(name = "${table.name}")
 public class ${className} {
 
 `
+
+    // Verificar si hay campo de clave primaria
+    const hasPrimaryKey = table.fields.some(field => field.pk)
+    
+    // Si no hay PK, agregar un ID automático
+    if (!hasPrimaryKey) {
+      console.log('⚠️ [SPRINGBOOT-EXPORT] Tabla sin PK detectada, agregando ID automático')
+      code += `    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+`
+    }
 
     // Generar campos
     table.fields.forEach(field => {
@@ -390,6 +473,19 @@ public class ${className} {
     // Constructor vacío
     code += `    public ${className}() {}\n\n`
 
+    // Getters y Setters para ID automático si fue agregado
+    if (!hasPrimaryKey) {
+      code += `    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+`
+    }
+
     // Getters y Setters
     table.fields.forEach(field => {
       const fieldName = this.toCamelCase(field.name)
@@ -420,6 +516,9 @@ public class ${className} {
     
     const pkField = table.fields.find(f => f.pk)
     const pkType = pkField ? this.getJavaType(pkField.type) : 'Long'
+    
+    // Si no hay PK explícita, usar Long como tipo por defecto
+    const finalPkType = pkField ? pkType : 'Long'
 
     return `package ${packagePath}.repository;
 
@@ -428,7 +527,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface ${className}Repository extends JpaRepository<${className}, ${pkType}> {
+public interface ${className}Repository extends JpaRepository<${className}, ${finalPkType}> {
 }`
   }
 
@@ -441,6 +540,9 @@ public interface ${className}Repository extends JpaRepository<${className}, ${pk
     
     const pkField = table.fields.find(f => f.pk)
     const pkType = pkField ? this.getJavaType(pkField.type) : 'Long'
+    
+    // Si no hay PK explícita, usar Long como tipo por defecto
+    const finalPkType = pkField ? pkType : 'Long'
 
     return `package ${packagePath}.service;
 
@@ -462,7 +564,7 @@ public class ${className}Service {
         return repository.findAll();
     }
 
-    public Optional<${className}> findById(${pkType} id) {
+    public Optional<${className}> findById(${finalPkType} id) {
         return repository.findById(id);
     }
 
@@ -470,11 +572,11 @@ public class ${className}Service {
         return repository.save(entity);
     }
 
-    public void deleteById(${pkType} id) {
+    public void deleteById(${finalPkType} id) {
         repository.deleteById(id);
     }
 
-    public ${className} update(${pkType} id, ${className}DTO dto) {
+    public ${className} update(${finalPkType} id, ${className}DTO dto) {
         ${className} entity = repository.findById(id)
             .orElseThrow(() -> new RuntimeException("${className} not found with id: " + id));
         
@@ -507,9 +609,32 @@ public class ${className}Service {
     const className = this.capitalize(this.toCamelCase(table.name))
     const packagePath = this.packageName
 
+    // Determinar qué imports necesitamos basado en los tipos de campos
+    const neededImports = new Set([
+      'jakarta.validation.constraints.*'
+    ])
+
+    // Analizar tipos de campos para determinar imports adicionales
+    table.fields
+      .filter(field => !field.pk || !field.increment)
+      .forEach(field => {
+        const javaType = this.getJavaType(field.type)
+        if (javaType === 'LocalDateTime') {
+          neededImports.add('java.time.LocalDateTime')
+        } else if (javaType === 'LocalDate') {
+          neededImports.add('java.time.LocalDate')
+        } else if (javaType === 'BigDecimal') {
+          neededImports.add('java.math.BigDecimal')
+        } else if (javaType === 'List') {
+          neededImports.add('java.util.List')
+        }
+      })
+
+    const importsList = Array.from(neededImports).sort()
+
     let code = `package ${packagePath}.dto;
 
-import javax.validation.constraints.*;
+${importsList.map(imp => `import ${imp};`).join('\n')}
 
 public class ${className}DTO {
 
@@ -571,6 +696,9 @@ public class ${className}DTO {
     
     const pkField = table.fields.find(f => f.pk)
     const pkType = pkField ? this.getJavaType(pkField.type) : 'Long'
+    
+    // Si no hay PK explícita, usar Long como tipo por defecto
+    const finalPkType = pkField ? pkType : 'Long'
 
     return `package ${packagePath}.controller;
 
@@ -580,8 +708,9 @@ import ${packagePath}.dto.${className}DTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import javax.validation.Valid;
+import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/${resourceName}")
@@ -597,7 +726,7 @@ public class ${className}Controller {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<${className}> getById(@PathVariable ${pkType} id) {
+    public ResponseEntity<${className}> getById(@PathVariable ${finalPkType} id) {
         return service.findById(id)
             .map(ResponseEntity::ok)
             .orElse(ResponseEntity.notFound().build());
@@ -611,7 +740,7 @@ public class ${className}Controller {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<${className}> update(@PathVariable ${pkType} id, @Valid @RequestBody ${className}DTO dto) {
+    public ResponseEntity<${className}> update(@PathVariable ${finalPkType} id, @Valid @RequestBody ${className}DTO dto) {
         try {
             ${className} updated = service.update(id, dto);
             return ResponseEntity.ok(updated);
@@ -621,7 +750,7 @@ public class ${className}Controller {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable ${pkType} id) {
+    public ResponseEntity<Void> delete(@PathVariable ${finalPkType} id) {
         service.deleteById(id);
         return ResponseEntity.noContent().build();
     }
@@ -663,6 +792,82 @@ public class DemoApplication {
   }
 
   /**
+   * Genera la clase de configuración CORS
+   */
+  generateCorsConfigClass() {
+    const packagePath = this.packageName
+
+    return `package ${packagePath}.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import java.util.Arrays;
+
+@Configuration
+public class CorsConfig implements WebMvcConfigurer {
+
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/api/**")
+                .allowedOrigins("*")
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedHeaders("*")
+                .allowCredentials(false);
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setAllowCredentials(false);
+        
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/api/**", configuration);
+        return source;
+    }
+}`
+  }
+
+  /**
+   * Genera la clase de configuración Swagger/OpenAPI
+   */
+  generateSwaggerConfigClass() {
+    const packagePath = this.packageName
+
+    return `package ${packagePath}.config;
+
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.info.Contact;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class SwaggerConfig {
+
+    @Bean
+    public OpenAPI customOpenAPI() {
+        return new OpenAPI()
+                .info(new Info()
+                        .title("Generated Spring Boot API")
+                        .description("API generada automáticamente desde un diagrama DBML")
+                        .version("1.0.0")
+                        .contact(new Contact()
+                                .name("DBDiagram Generator")
+                                .email("generated@dbdiagram.io")));
+    }
+}`
+  }
+
+  /**
    * Genera la clase de prueba principal
    */
   generateMainTestClass() {
@@ -689,6 +894,11 @@ class DemoApplicationTests {
     const className = this.capitalize(this.toCamelCase(table.name))
     const packagePath = this.packageName
     const resourceName = table.name.toLowerCase()
+    
+    // Obtener el tipo correcto del ID
+    const pkField = table.fields.find(f => f.pk)
+    const pkType = pkField ? this.getJavaType(pkField.type) : 'Long'
+    const pkValue = pkType === 'Integer' ? '1' : '1L'
 
     return `package ${packagePath}.controller;
 
@@ -733,7 +943,7 @@ public class ${className}ControllerTest {
     @Test
     public void testGetById() throws Exception {
         ${className} entity = new ${className}();
-        when(service.findById(1L)).thenReturn(Optional.of(entity));
+        when(service.findById(${pkValue})).thenReturn(Optional.of(entity));
 
         mockMvc.perform(get("/api/${resourceName}/1"))
                 .andExpect(status().isOk())
@@ -762,12 +972,17 @@ ${tablesList}
 2. Ejecutar el archivo \`DemoApplication.java\`
 3. La aplicación estará disponible en \`http://localhost:8080\`
 
+## Documentación API
+
+- **Swagger UI**: \`http://localhost:8080/swagger-ui.html\`
+- **OpenAPI JSON**: \`http://localhost:8080/v3/api-docs\`
+
 ## Base de Datos
 
 Por defecto, el proyecto usa H2 (base de datos en memoria) para facilitar las pruebas.
 Puedes acceder a la consola H2 en: \`http://localhost:8080/h2-console\`
 
-- URL: \`jdbc:h2:mem:testdb\`
+- URL: \`jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE\`
 - Usuario: \`sa\`
 - Contraseña: \`password\`
 
@@ -1010,16 +1225,35 @@ Importa el archivo \`postman-collection.json\` incluido en este proyecto para pr
       'bigint': 'Long',
       'varchar': 'String',
       'text': 'String',
+      'char': 'String',
       'boolean': 'Boolean',
+      'bool': 'Boolean',
       'timestamp': 'LocalDateTime',
+      'datetime': 'LocalDateTime',
       'date': 'LocalDate',
       'decimal': 'BigDecimal',
+      'numeric': 'BigDecimal',
       'float': 'Double',
-      'double': 'Double'
+      'double': 'Double',
+      'real': 'Double',
+      'money': 'BigDecimal',
+      'currency': 'BigDecimal'
     }
     
     const typeString = this.getFieldTypeString(dbmlType)
-    const baseType = typeString.toLowerCase().split('(')[0]
+    const baseType = typeString.toLowerCase().split('(')[0].trim()
+    
+    // Manejar casos especiales
+    if (baseType.includes('timestamp') || baseType.includes('datetime')) {
+      return 'LocalDateTime'
+    }
+    if (baseType.includes('date') && !baseType.includes('datetime')) {
+      return 'LocalDate'
+    }
+    if (baseType.includes('decimal') || baseType.includes('numeric') || baseType.includes('money')) {
+      return 'BigDecimal'
+    }
+    
     return typeMap[baseType] || 'String'
   }
 }
