@@ -189,7 +189,7 @@ app.use((err, req, res, next) => {
 // SERVER STARTUP
 // ================================================
 
-const PORT = process.env.AUTH_PORT || 3002;
+const PORT = process.env.PORT || 3002;
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
@@ -209,7 +209,7 @@ const startServer = async () => {
     await db.query('SELECT NOW()');
     console.log('✅ Database connected successfully');
     
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => { // Agregado '0.0.0.0'
       console.log('🚀 ========================================');
       console.log(`🔐 Auth Server running on port ${PORT}`);
       console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
