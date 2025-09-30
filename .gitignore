@@ -9,3 +9,4 @@ api/test-cors.js
 web/env.example
 api/env.example
 web/env.example
+api/.env
