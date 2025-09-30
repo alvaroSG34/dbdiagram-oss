@@ -3,19 +3,19 @@ export const socketConfig = {
   // Para desarrollo local
   development: {
     host: 'localhost',
-    port: '3002'  // Mismo puerto que la API
+    port: '3003'  // Mismo puerto que la API
   },
   
   // Para red local (cambiar por tu IP local)
   network: {
     host: '192.168.1.100', // CAMBIA ESTA IP POR TU IP LOCAL
-    port: '3002'  // Mismo puerto que la API
+    port: '3003'  // Mismo puerto que la API
   },
   
   // Para producción
   production: {
-    host: window.location.hostname,
-    port: '3002'  // Mismo puerto que la API
+    host: 'brave-strength-production.up.railway.app',
+    port: ''  // Railway maneja el puerto automáticamente
   }
 };
 
@@ -26,6 +26,7 @@ export const getSocketUrl = () => {
   const isNetworkAccess = window.location.hostname.startsWith('192.168') || window.location.hostname.startsWith('10.') || window.location.hostname.startsWith('172.');
   
   let config;
+  let protocol = 'http';
   
   if (isLocalhost) {
     config = socketConfig.development;
@@ -33,9 +34,10 @@ export const getSocketUrl = () => {
     config = socketConfig.network;
   } else {
     config = socketConfig.production;
+    protocol = 'https'; // Usar HTTPS en producción
   }
   
-  const url = `http://${config.host}:${config.port}`;
+  const url = config.port ? `${protocol}://${config.host}:${config.port}` : `${protocol}://${config.host}`;
   return url;
 };
 

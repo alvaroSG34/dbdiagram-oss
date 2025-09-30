@@ -11,8 +11,8 @@ import axios from 'axios'
 // Configuración dinámica para desarrollo y producción
 const getBaseURL = () => {
   // En producción, usar variables de entorno o URL relativa
-  if (process.env.NODE_ENV === 'production') {
-    return process.env.API_BASE_URL || '/api'
+  if (process.env.NODE_ENV === 'development') {
+    return process.env.API_BASE_URL || 'https://brave-strength-production.up.railway.app/api'
   }
   // En desarrollo, usar localhost con puerto correcto
   return 'http://localhost:3003/api'
