@@ -386,7 +386,15 @@ export default {
         const authToken = localStorage.getItem('auth_token')
         console.log('🔐 Conectando con token:', authToken ? 'Token presente' : 'Sin token')
         
-        socket.value = io('http://localhost:3002', {
+        // Configuración dinámica de Socket.IO para desarrollo y producción
+        const getSocketURL = () => {
+          if (process.env.NODE_ENV === 'production') {
+            return process.env.SOCKET_URL || window.location.origin
+          }
+          return 'http://localhost:3003'
+        }
+
+        socket.value = io(getSocketURL(), {
           auth: {
             token: authToken
           },

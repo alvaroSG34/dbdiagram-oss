@@ -160,7 +160,15 @@ export const useRoomStore = defineStore('room', {
 
       // Importar socket.io-client dinámicamente
       import('socket.io-client').then(({ io }) => {
-        this.socket = io('http://localhost:3002', {
+        // Configuración dinámica de Socket.IO para desarrollo y producción
+        const getSocketURL = () => {
+          if (process.env.NODE_ENV === 'production') {
+            return process.env.SOCKET_URL || window.location.origin
+          }
+          return 'http://localhost:3003'
+        }
+
+        this.socket = io(getSocketURL(), {
           auth: {
             token: token,
             roomId: roomId

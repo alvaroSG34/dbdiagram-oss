@@ -8,8 +8,18 @@ import axios from 'axios'
 // "export default () => {}" function below (which runs individually
 // for each client)
 
+// Configuración dinámica para desarrollo y producción
+const getBaseURL = () => {
+  // En producción, usar variables de entorno o URL relativa
+  if (process.env.NODE_ENV === 'production') {
+    return process.env.API_BASE_URL || '/api'
+  }
+  // En desarrollo, usar localhost con puerto correcto
+  return 'http://localhost:3003/api'
+}
+
 const api = axios.create({
-  baseURL: 'http://localhost:3002/api',
+  baseURL: getBaseURL(),
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
