@@ -10,3 +10,4 @@ web/env.example
 api/env.example
 web/env.example
 api/.env
+api/.env
