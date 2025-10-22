@@ -40,8 +40,12 @@ module.exports = configure(function (ctx) {
       env: {
         ...require("dotenv").config().parsed,
         // Variables de entorno específicas para el build
-        API_BASE_URL: process.env.API_BASE_URL || 'https://brave-strength-production.up.railway.app/api',
-        SOCKET_URL: process.env.SOCKET_URL || 'wss://brave-strength-production.up.railway.app'
+        API_BASE_URL: process.env.API_BASE_URL || (ctx.dev ? 'http://localhost:3002/api' : 'https://brave-strength-production.up.railway.app/api'),
+        SOCKET_URL: process.env.SOCKET_URL || (ctx.dev ? 'ws://localhost:3002' : 'wss://brave-strength-production.up.railway.app'),
+        // AI Service API Keys
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+        DEFAULT_AI_PROVIDER: process.env.AI_PROVIDER || process.env.DEFAULT_AI_PROVIDER || 'gemini'
       },
       publicPath: '/',
       vueRouterMode: "history",

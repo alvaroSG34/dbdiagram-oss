@@ -43,16 +43,7 @@
           <q-tooltip>Upload Diagram Image</q-tooltip>
         </q-btn>
         
-        <q-btn
-          flat
-          dense
-          round
-          icon="settings"
-          @click="showSettings = true"
-          class="q-mr-xs"
-        >
-          <q-tooltip>Settings</q-tooltip>
-        </q-btn>
+        <!-- Settings button removed - API keys now configured in .env file -->
         
         <q-btn
           flat
@@ -316,53 +307,7 @@
       </div>
     </div>
 
-    <!-- Settings Dialog -->
-    <q-dialog v-model="showSettings">
-      <q-card style="min-width: 400px">
-        <q-card-section>
-          <div class="text-h6">AI Assistant Settings</div>
-        </q-card-section>
-
-        <q-card-section>
-          <div class="q-gutter-md">
-            <q-select
-              v-model="selectedProvider"
-              :options="availableProviders"
-              label="AI Provider"
-              outlined
-              option-value="value"
-              option-label="label"
-              emit-value
-              map-options
-              @update:model-value="switchProvider"
-            />
-            
-            <q-input
-              v-model="apiKeyInput"
-              label="API Key"
-              type="password"
-              outlined
-              hint="Your API key will be stored locally"
-            />
-            
-            <q-toggle
-              v-model="autoScroll"
-              label="Auto-scroll to new messages"
-            />
-            
-            <q-toggle
-              v-model="showTimestamps"
-              label="Show timestamps"
-            />
-          </div>
-        </q-card-section>
-
-        <q-card-actions align="right">
-          <q-btn flat label="Cancel" @click="showSettings = false" />
-          <q-btn flat label="Save" color="primary" @click="saveSettings" />
-        </q-card-actions>
-      </q-card>
-    </q-dialog>
+    <!-- Settings Dialog removed - API keys now configured in .env file -->
   </div>
 </template>
 
@@ -386,9 +331,7 @@ const messages = ref([])
 const currentMessage = ref('')
 const messagesContainer = ref(null)
 const showSuggestions = ref(true)
-const showSettings = ref(false)
-const selectedProvider = ref('gemini')
-const apiKeyInput = ref('')
+const selectedProvider = ref(process.env.DEFAULT_AI_PROVIDER || 'gemini')
 const autoScroll = ref(true)
 const showTimestamps = ref(true)
 
@@ -399,10 +342,10 @@ const uploadedImage = ref(null)
 const isAnalyzingImage = ref(false)
 const fileInput = ref(null)
 
-// Información del proveedor AI
+// Información del proveedor AI (ahora desde variables de entorno)
 const providerInfo = ref({
-  current: 'gemini',
-  hasApiKey: false
+  current: process.env.DEFAULT_AI_PROVIDER || 'gemini',
+  hasApiKey: !!(process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY)
 })
 
 // Sugerencias rápidas (computadas dinámicamente)
@@ -435,12 +378,23 @@ const suggestions = computed(() => {
   }
 })
 
-// Proveedores disponibles
-const availableProviders = [
-  { label: 'Google Gemini (Free)', value: 'gemini' },
-  { label: 'OpenAI GPT-4o', value: 'openai' },
-  { label: 'Ollama Local', value: 'ollama' }
-]
+// Proveedores disponibles (filtrados según API keys configuradas en .env)
+const availableProviders = computed(() => {
+  const providers = []
+  
+  if (process.env.GEMINI_API_KEY) {
+    providers.push({ label: 'Google Gemini (Free)', value: 'gemini' })
+  }
+  
+  if (process.env.OPENAI_API_KEY) {
+    providers.push({ label: 'OpenAI GPT-4o', value: 'openai' })
+  }
+  
+  // Ollama siempre disponible (local)
+  providers.push({ label: 'Ollama Local', value: 'ollama' })
+  
+  return providers
+})
 
 // Computadas
 const hasMessages = computed(() => messages.value.length > 0)
@@ -626,10 +580,11 @@ Table posts {
 
 // Generar con OpenAI
 const generateWithOpenAI = async (prompt, systemPrompt, startTime) => {
-  const apiKey = localStorage.getItem('ai_openai_key')
+  // 🔑 Obtener API key desde variables de entorno (inyectadas por Quasar)
+  const apiKey = process.env.OPENAI_API_KEY
   
   if (!apiKey) {
-    throw new Error('OpenAI API key not configured. Please add your API key in the settings.')
+    throw new Error('OpenAI API key not configured in .env file. Please add OPENAI_API_KEY to your web/.env file.')
   }
   
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -668,10 +623,11 @@ const generateWithOpenAI = async (prompt, systemPrompt, startTime) => {
 
 // Generar con Gemini
 const generateWithGemini = async (prompt, systemPrompt, startTime) => {
-  const apiKey = localStorage.getItem('ai_gemini_key')
+  // 🔑 Obtener API key desde variables de entorno (inyectadas por Quasar)
+  const apiKey = process.env.GEMINI_API_KEY
   
   if (!apiKey) {
-    throw new Error('Gemini API key not configured. Please add your API key in the settings.')
+    throw new Error('Gemini API key not configured in .env file. Please add GEMINI_API_KEY to your web/.env file.')
   }
   
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`, {
@@ -1075,14 +1031,10 @@ const switchProvider = async (provider) => {
     selectedProvider.value = providerString
     providerInfo.value.current = providerString
     
-    // Check for existing API key for the new provider
-    const existingKey = localStorage.getItem(`ai_${providerString}_key`)
-    providerInfo.value.hasApiKey = !!existingKey
-    
-    // Update provider info
+    // Update provider info based on environment variables
     const providerConfigs = {
-      gemini: { current: 'gemini', hasApiKey: !!localStorage.getItem('ai_gemini_key') },
-      openai: { current: 'openai', hasApiKey: !!localStorage.getItem('ai_openai_key') },
+      gemini: { current: 'gemini', hasApiKey: !!process.env.GEMINI_API_KEY },
+      openai: { current: 'openai', hasApiKey: !!process.env.OPENAI_API_KEY },
       ollama: { current: 'ollama', hasApiKey: true } // Local, no key needed
     }
     
@@ -1102,21 +1054,6 @@ const switchProvider = async (provider) => {
       position: 'top-right'
     })
   }
-}
-
-const saveSettings = () => {
-  if (apiKeyInput.value) {
-    localStorage.setItem(`ai_${selectedProvider.value}_key`, apiKeyInput.value)
-    providerInfo.value.hasApiKey = true
-  }
-  
-  showSettings.value = false
-  
-  $q.notify({
-    type: 'positive',
-    message: 'Settings saved!',
-    position: 'top-right'
-  })
 }
 
 // Image upload functions
@@ -1267,10 +1204,11 @@ const analyzeImageWithProvider = async (imageBlob, provider = selectedProvider.v
 
 // Analyze with OpenAI Vision
 const analyzeWithOpenAIVision = async (imageBlob, startTime) => {
-  const apiKey = localStorage.getItem('ai_openai_key')
+  // 🔑 Obtener API key desde variables de entorno
+  const apiKey = process.env.OPENAI_API_KEY
   
   if (!apiKey) {
-    throw new Error('OpenAI API key not configured. Please add your API key in the settings.')
+    throw new Error('OpenAI API key not configured in .env file. Please add OPENAI_API_KEY to your web/.env file.')
   }
   
   // Convert blob to base64
@@ -1345,10 +1283,11 @@ Generate clean, well-structured DBML code.`
 
 // Analyze with Gemini Vision
 const analyzeWithGeminiVision = async (imageBlob, startTime) => {
-  const apiKey = localStorage.getItem('ai_gemini_key')
+  // 🔑 Obtener API key desde variables de entorno
+  const apiKey = process.env.GEMINI_API_KEY
   
   if (!apiKey) {
-    throw new Error('Gemini API key not configured. Please add your API key in the settings.')
+    throw new Error('Gemini API key not configured in .env file. Please add GEMINI_API_KEY to your web/.env file.')
   }
   
   // Convert blob to base64
