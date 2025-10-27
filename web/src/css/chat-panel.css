@@ -406,6 +406,27 @@
   }
 }
 
+/* Context Banner */
+.chat-context-banner {
+  margin: 8px 12px;
+  animation: fadeInDown 0.3s ease;
+}
+
+.chat-context-banner .q-banner {
+  border-left: 3px solid #2196F3;
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Animations */
 @keyframes fadeInUp {
   from {

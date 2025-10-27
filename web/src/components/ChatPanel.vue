@@ -108,6 +108,34 @@
                   <q-chip dense outline class="q-ml-sm">
                     {{ message.provider || 'AI' }}
                   </q-chip>
+                  
+                  <!-- Indicador de modificación -->
+                  <q-chip 
+                    v-if="message.isModification"
+                    dense 
+                    color="blue" 
+                    text-color="white" 
+                    icon="auto_fix_high"
+                    class="q-ml-sm"
+                    size="sm"
+                  >
+                    Modified Schema
+                    <q-tooltip>This is the complete schema with your requested modifications</q-tooltip>
+                  </q-chip>
+                  
+                  <!-- Indicador de contexto -->
+                  <q-chip 
+                    v-else-if="message.hasContext"
+                    dense 
+                    color="orange" 
+                    text-color="white" 
+                    icon="visibility"
+                    class="q-ml-sm"
+                    size="sm"
+                  >
+                    New Tables
+                    <q-tooltip>AI generated new tables based on your existing schema</q-tooltip>
+                  </q-chip>
                 </div>
                 
                 <div class="chat-dbml-actions">
@@ -268,6 +296,20 @@
         </div>
       </div>
 
+      <!-- Context Banner -->
+      <div v-if="currentSchemaInfo.hasSchema && !showImageUpload && !uploadedImage" class="chat-context-banner">
+        <q-banner rounded dense class="bg-blue-1 text-blue-9">
+          <template v-slot:avatar>
+            <q-icon name="visibility" color="blue" />
+          </template>
+          <div class="text-caption">
+            <strong>AI can see your current diagram:</strong> {{ currentSchemaInfo.summary }}
+            <br>
+            <span class="text-grey-7">Try: "Add a comments table" or "Add relationship between users and posts"</span>
+          </div>
+        </q-banner>
+      </div>
+
       <!-- Hidden file input -->
       <input
         ref="fileInput"
@@ -280,7 +322,9 @@
       <div v-if="!showImageUpload && !uploadedImage" class="chat-input-container">
         <q-input
           v-model="currentMessage"
-          placeholder="Describe your database schema... (e.g., 'Create tables for users, roles, and permissions')"
+          :placeholder="currentSchemaInfo.hasSchema 
+            ? 'Modify your schema or add new tables... (e.g., \'Add a comments table with user_id\')' 
+            : 'Describe your database schema... (e.g., \'Create tables for users, roles, and permissions\')'"
           outlined
           dense
           autogrow
@@ -289,7 +333,7 @@
           class="chat-input"
         >
           <template v-slot:prepend>
-            <q-icon name="edit" />
+            <q-icon :name="currentSchemaInfo.hasSchema ? 'auto_fix_high' : 'edit'" />
           </template>
           
           <template v-slot:append>
@@ -450,6 +494,12 @@ const generateDbml = async (prompt) => {
   isLoading.value = true
   
   try {
+    // Get current DBML to detect if we're modifying existing schema
+    const currentDbml = editorStore.source.text || ''
+    const hasExistingSchema = currentDbml.trim().length > 0
+    const modificationKeywords = ['edita', 'edit', 'modifica', 'modify', 'añade', 'add', 'agrega', 'cambia', 'change', 'actualiza', 'update', 'relacion', 'relationship', 'entre', 'between']
+    const isModification = modificationKeywords.some(keyword => prompt.toLowerCase().includes(keyword))
+    
     // Generate DBML using selected provider
     const result = await generateDbmlWithProvider(prompt, selectedProvider.value)
     
@@ -460,22 +510,26 @@ const generateDbml = async (prompt) => {
       dbml: result.dbmlCode,
       provider: result.provider,
       duration: result.duration,
+      hasContext: hasExistingSchema,
+      isModification: hasExistingSchema && isModification,
       timestamp: new Date()
     }
     
     messages.value.push(assistantMessage)
     
-    // Auto-insert si es la primera generación
-    if (messages.value.filter(m => m.type === 'assistant').length === 1) {
+    // Auto-insert si es la primera generación O si es una modificación
+    if (messages.value.filter(m => m.type === 'assistant').length === 1 || isModification) {
       const shouldAutoInsert = await $q.dialog({
-        title: 'Insert Generated DBML?',
-        message: 'Would you like to insert this generated DBML into the editor?',
-        ok: 'Yes, Insert',
+        title: isModification ? 'Replace Diagram?' : 'Insert Generated DBML?',
+        message: isModification 
+          ? 'This will replace your current diagram with the modified version. Continue?' 
+          : 'Would you like to insert this generated DBML into the editor?',
+        ok: isModification ? 'Yes, Replace' : 'Yes, Insert',
         cancel: 'No, Keep in Chat'
       })
       
       if (shouldAutoInsert) {
-        insertDbml(result.dbmlCode, 'append')
+        insertDbml(result.dbmlCode, isModification ? 'replace' : 'append')
       }
     }
     
@@ -504,22 +558,50 @@ const generateDbmlWithProvider = async (prompt, provider = selectedProvider.valu
   const currentDbml = editorStore.source.text || ''
   const hasExistingSchema = currentDbml.trim().length > 0
   
+  // Detectar si el usuario quiere MODIFICAR el esquema actual o crear algo NUEVO
+  const modificationKeywords = ['edita', 'edit', 'modifica', 'modify', 'añade', 'add', 'agrega', 'cambia', 'change', 'actualiza', 'update', 'relacion', 'relationship', 'entre', 'between']
+  const isModification = modificationKeywords.some(keyword => prompt.toLowerCase().includes(keyword))
+  
+  console.log('🔍 Análisis del prompt:')
+  console.log('  - Tiene esquema existente:', hasExistingSchema)
+  console.log('  - Es modificación:', isModification)
+  console.log('  - Prompt:', prompt)
+  
   let systemPrompt = `Eres un arquitecto de bases de datos experto especializado en generar código DBML válido y bien estructurado.
 
 CONTEXTO IMPORTANTE:
-${hasExistingSchema ? 
-  `El usuario ya tiene un esquema DBML existente. NO repitas tablas que ya existen. Solo genera las NUEVAS tablas y relaciones solicitadas.
+${hasExistingSchema && isModification ? 
+  `El usuario quiere MODIFICAR su esquema DBML existente.
+
+⚠️ IMPORTANTE: Debes devolver el esquema COMPLETO, incluyendo todas las tablas existentes más las modificaciones solicitadas.
 
 ESQUEMA ACTUAL:
+\`\`\`dbml
 ${currentDbml}
+\`\`\`
 
-INSTRUCCIONES ESPECÍFICAS:
-- NO repitas ninguna tabla que ya existe en el esquema actual
-- Solo genera nuevas tablas solicitadas
-- Para relaciones, usa las tablas existentes como referencia
-- Mantén la consistencia con los nombres y tipos de datos existentes` 
+INSTRUCCIONES PARA MODIFICACIÓN:
+- Devuelve el esquema COMPLETO (no solo los cambios)
+- Mantén TODAS las tablas existentes sin cambios (a menos que se solicite específicamente)
+- Aplica SOLO las modificaciones solicitadas por el usuario
+- Si se pide añadir una relación, agrega el campo foreign key y la referencia Ref:
+- Si se pide añadir una tabla, inclúyela junto con todas las existentes
+- Mantén la consistencia con los nombres y tipos de datos existentes
+- Las referencias deben ir FUERA de las tablas, formato: Ref: tabla1.campo > tabla2.campo` 
+  : hasExistingSchema ?
+  `El usuario ya tiene un esquema DBML existente pero quiere crear algo NUEVO (no modificar lo existente).
+
+ESQUEMA ACTUAL:
+\`\`\`dbml
+${currentDbml}
+\`\`\`
+
+INSTRUCCIONES PARA NUEVO CONTENIDO:
+- Solo genera las NUEVAS tablas solicitadas (no repitas las existentes)
+- Si necesitas referenciar tablas existentes, usa los nombres que ya existen
+- Mantén la consistencia con los nombres y tipos de datos existentes`
   : 
-  'El usuario está empezando un esquema nuevo desde cero.'
+  'El usuario está empezando un esquema nuevo desde cero. Crea un esquema completo basado en la solicitud.'
 }
 
 REGLAS OBLIGATORIAS:
@@ -527,10 +609,13 @@ REGLAS OBLIGATORIAS:
 2. Usa nombres en inglés para tablas y campos (snake_case)
 3. Incluye siempre primary keys con [pk, increment]
 4. Añade timestamps: created_at, updated_at con [default: \`now()\`]
-5. Las referencias (Ref) deben ir FUERA de las tablas, no dentro
-6. Usa formato: Ref: tabla1.campo > tabla2.campo
-7. Para relaciones many-to-many, crea tablas intermedias
-8. ${hasExistingSchema ? 'IMPORTANTE: NO repitas tablas existentes, solo crea las nuevas solicitadas' : 'Crea un esquema completo basado en la solicitud'}
+5. ⚠️ CRÍTICO: Las referencias (Ref:) deben ir FUERA de las tablas, NUNCA dentro
+6. ⚠️ PROHIBIDO: NO uses [ref: > tabla.campo] dentro de columnas
+7. Usa formato correcto: Ref: tabla1.campo > tabla2.campo (fuera de la tabla)
+8. Para relaciones many-to-many, crea tablas intermedias con indexes para PKs compuestas
+9. Para primary keys compuestas, usa: indexes { (campo1, campo2) [pk] }
+10. Usa tipos: integer, varchar(n), text, timestamp, boolean, decimal(p,s)
+11. ${hasExistingSchema ? 'IMPORTANTE: NO repitas tablas existentes, solo crea las nuevas solicitadas' : 'Crea un esquema completo basado en la solicitud'}
 
 FORMATO CORRECTO:
 Table users {
@@ -548,8 +633,29 @@ Table posts {
   updated_at timestamp [default: \`now()\`]
 }
 
-// Referencias van FUERA de las tablas
+Table user_roles {
+  user_id integer [not null]
+  role_id integer [not null]
+  
+  indexes {
+    (user_id, role_id) [pk]
+  }
+}
+
+// ✅ Referencias van FUERA de las tablas (OBLIGATORIO)
 Ref: posts.user_id > users.id
+Ref: user_roles.user_id > users.id
+Ref: user_roles.role_id > roles.id
+
+FORMATO INCORRECTO (NO HACER):
+Table posts {
+  id integer [pk]
+  user_id integer [ref: > users.id]  // ❌ PROHIBIDO: Ref dentro de la tabla
+}
+
+Table user_roles {
+  [pk: (user_id, role_id)]  // ❌ INCORRECTO: Sintaxis inválida
+}
 
 FORMATO INCORRECTO (NO HACER):
 Table posts {

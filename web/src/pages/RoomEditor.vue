@@ -391,7 +391,7 @@ export default {
           if (process.env.NODE_ENV === 'production') {
             return process.env.SOCKET_URL || 'https://brave-strength-production.up.railway.app'
           }
-          return 'http://localhost:3003'
+          return 'http://localhost:3002'
         }
 
         socket.value = io(getSocketURL(), {
