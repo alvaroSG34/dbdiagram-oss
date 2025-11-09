@@ -110,6 +110,18 @@
             <q-tooltip>Generar proyecto Spring Boot con CRUD completo</q-tooltip>
           </q-btn>
 
+          <!-- Export to Flutter Button -->
+          <q-btn
+            color="secondary"
+            icon="phone_android"
+            label="Exportar a Flutter"
+            @click="exportToFlutter"
+            :loading="exportingFlutter"
+            class="q-ml-sm"
+          >
+            <q-tooltip>Generar aplicación Flutter que se conecta al backend Spring Boot</q-tooltip>
+          </q-btn>
+
           <!-- AI Chat Toggle -->
           <q-btn
             flat
@@ -279,6 +291,7 @@ import DbmlEditor from 'src/components/DbmlEditor'
 import DbmlGraph from 'src/components/DbmlGraph'
 import ChatPanel from 'src/components/ChatPanel'
 import { springBootExportService } from 'src/services/springBootExportService'
+import { flutterExportService } from 'src/services/flutterExportService'
 import io from 'socket.io-client'
 
 export default {
@@ -303,6 +316,7 @@ export default {
     const syncing = ref(false)
     const saving = ref(false)
     const exporting = ref(false)
+    const exportingFlutter = ref(false)
     const roomInfo = ref(null)
     const dbmlContent = ref('')
     const lastSavedContent = ref('')
@@ -685,6 +699,58 @@ export default {
       }
     }
 
+    const exportToFlutter = async () => {
+      try {
+        exportingFlutter.value = true
+        
+        console.log('🚀 [ROOM-EDITOR] Iniciando exportación a Flutter')
+        console.log('📊 Schema actual:', schema.value)
+        
+        if (!schema.value || !schema.value.tables || schema.value.tables.length === 0) {
+          $q.notify({
+            type: 'warning',
+            message: 'No hay tablas en el diagrama para exportar',
+            position: 'top-right'
+          })
+          return
+        }
+
+        // Generar el proyecto Flutter
+        const zipBlob = await flutterExportService.exportToFlutter(schema.value, {
+          appName: 'empresa_manager',
+          packageName: 'com.dbdiagram.empresa_manager'
+        })
+
+        // Crear y descargar el archivo ZIP
+        const url = window.URL.createObjectURL(zipBlob)
+        const a = document.createElement('a')
+        a.style.display = 'none'
+        a.href = url
+        a.download = `flutter-project-${new Date().getTime()}.zip`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+
+        $q.notify({
+          type: 'positive',
+          message: 'Proyecto Flutter generado exitosamente. Incluye: manejo de errores mejorado, logging, tests unitarios y loading states granulares. Recuerda exportar y ejecutar el backend Spring Boot primero.',
+          position: 'top-right',
+          timeout: 6000
+        })
+        
+      } catch (error) {
+        console.error('❌ Error al exportar a Flutter:', error)
+        $q.notify({
+          type: 'negative',
+          message: 'Error al exportar a Flutter: ' + error.message,
+          position: 'top-right'
+        })
+      } finally {
+        exportingFlutter.value = false
+      }
+    }
+
     // Flag para evitar bucles infinitos
     const isUpdatingFromSocket = ref(false)
 
@@ -791,6 +857,7 @@ export default {
       syncing,
       saving,
       exporting,
+      exportingFlutter,
       roomInfo,
       dbmlContent,
       connectedUsers,
@@ -808,6 +875,7 @@ export default {
       onContentChange,
       saveContent,
       exportToSpringBoot,
+      exportToFlutter,
       goBack,
       copyRoomCode,
       getInitials,
