@@ -704,6 +704,18 @@ class ${className}Service {
 `
   }
 
+  // Helper para generar import de foundation.dart evitando conflictos de nombres
+  getFoundationImport(className) {
+    // Lista de nombres que entran en conflicto con clases de Flutter foundation.dart
+    const flutterConflictNames = ['Category']
+    
+    if (flutterConflictNames.includes(className)) {
+      return `import 'package:flutter/foundation.dart' hide ${className};`
+    }
+    
+    return `import 'package:flutter/foundation.dart';`
+  }
+
   generateProviderClass(table) {
     const className = this.capitalize(this.toCamelCase(table.name))
     const fileName = this.toSnakeCase(table.name)
@@ -712,7 +724,7 @@ class ${className}Service {
     const pkName = pkField ? this.toCamelCase(pkField.name) : 'id'
     const pkType = this.getDartType(pkField?.type || 'integer')
 
-    return `import 'package:flutter/foundation.dart';
+    return `${this.getFoundationImport(className)}
 import '../../domain/entities/${fileName}.dart';
 import '../../data/repositories/${fileName}_repository.dart';
 

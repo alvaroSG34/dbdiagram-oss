@@ -318,6 +318,7 @@ spring.jpa.hibernate.ddl-auto=create-drop
 spring.jpa.show-sql=true
 spring.jpa.format-sql=true
 spring.jpa.properties.hibernate.format_sql=true
+spring.jpa.properties.hibernate.globally_quoted_identifiers=true
 
 # H2 Console (for development)
 spring.h2.console.enabled=true
@@ -358,6 +359,7 @@ spring.web.cors.allowed-headers=*`
     properties:
       hibernate:
         format_sql: true
+        globally_quoted_identifiers: true
   h2:
     console:
       enabled: true
