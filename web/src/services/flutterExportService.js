@@ -2,10 +2,6 @@
  * Servicio para exportar diagramas DBML a proyectos Flutter
  * Orientado a Sistemas de Gestión Empresarial
  * Conecta con backend Spring Boot
- * 
- * NOTA: Este archivo contiene template strings que generan código Dart.
- * Los errores del linter en las secciones que generan código Dart son falsos positivos
- * y pueden ser ignorados, ya que el código generado es válido Dart, no JavaScript.
  */
 
 import JSZip from 'jszip'
@@ -66,10 +62,7 @@ export class FlutterExportService {
       // 11. Generar main.dart y configuración de app
       await this.generateMainFiles(zip, schema.tables)
 
-      // 12. Generar tests unitarios
-      await this.generateTests(zip, schema.tables)
-
-      // 13. Generar documentación
+      // 12. Generar documentación
       await this.generateDocumentation(zip, schema)
 
       console.log('✅ [FLUTTER-EXPORT] Exportación completada')
@@ -108,11 +101,8 @@ export class FlutterExportService {
       'lib/presentation/widgets/cards',
       'lib/presentation/widgets/dialogs',
       'test',
-      'test/presentation',
-      'test/presentation/providers',
-      'test/data',
-      'test/data/services',
-      'test/data/repositories',
+      'test/unit',
+      'test/widget',
       'assets',
       'assets/images',
       'assets/icons'
@@ -241,6 +231,9 @@ export class FlutterExportService {
     const dateFieldWidget = this.generateDateFieldWidget()
     zip.file('lib/presentation/widgets/forms/custom_date_field.dart', dateFieldWidget)
 
+    const switchWidget = this.generateSwitchWidget()
+    zip.file('lib/presentation/widgets/forms/custom_switch.dart', switchWidget)
+
     // Cards
     const entityCard = this.generateEntityCard()
     zip.file('lib/presentation/widgets/cards/entity_card.dart', entityCard)
@@ -273,14 +266,6 @@ export class FlutterExportService {
    * Genera utilidades
    */
   async generateUtils(zip) {
-    // Error classes
-    const errorClasses = this.generateErrorClasses()
-    zip.file('lib/core/errors/app_exception.dart', errorClasses)
-    
-    // Logger
-    const loggerUtil = this.generateLoggerUtil()
-    zip.file('lib/core/utils/logger_util.dart', loggerUtil)
-    
     // Export service (PDF/Excel)
     const exportService = this.generateExportService()
     zip.file('lib/core/utils/export_service.dart', exportService)
@@ -307,32 +292,6 @@ export class FlutterExportService {
 
     const routesCode = this.generateRoutes(tables)
     zip.file('lib/core/config/app_routes.dart', routesCode)
-  }
-
-  /**
-   * Genera tests unitarios
-   */
-  async generateTests(zip, tables) {
-    // Tests para providers
-    tables.forEach(table => {
-      const providerTest = this.generateProviderTest(table)
-      const fileName = `test/presentation/providers/${this.toSnakeCase(table.name)}_provider_test.dart`
-      zip.file(fileName, providerTest)
-    })
-
-    // Tests para servicios
-    tables.forEach(table => {
-      const serviceTest = this.generateServiceTest(table)
-      const fileName = `test/data/services/${this.toSnakeCase(table.name)}_service_test.dart`
-      zip.file(fileName, serviceTest)
-    })
-
-    // Tests para repositorios
-    tables.forEach(table => {
-      const repositoryTest = this.generateRepositoryTest(table)
-      const fileName = `test/data/repositories/${this.toSnakeCase(table.name)}_repository_test.dart`
-      zip.file(fileName, repositoryTest)
-    })
   }
 
   /**
@@ -386,16 +345,11 @@ dependencies:
   # Utils
   uuid: ^4.2.1
   equatable: ^2.0.5
-  
-  # Logging
-  logger: ^2.0.2+1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
-  mockito: ^5.4.4
-  build_runner: ^2.4.7
 
 flutter:
   uses-material-design: true
@@ -574,13 +528,9 @@ ${table.fields.map(f => `    ${this.toCamelCase(f.name)},`).join('\n')}
     const entityName = className
     const serviceName = `${className}Service`
     const fileName = this.toSnakeCase(table.name)
-    // Detectar PK para usar el tipo correcto
-    const pkField = table.fields.find(f => f.pk) || table.fields[0]
-    const pkType = this.getDartType(pkField?.type || 'integer')
 
     return `import '../../domain/entities/${fileName}.dart';
 import '../services/${fileName}_service.dart';
-import '../../core/utils/logger_util.dart';
 
 class ${className}Repository {
   final ${serviceName} _service;
@@ -589,61 +539,40 @@ class ${className}Repository {
 
   Future<List<${entityName}>> getAll() async {
     try {
-      AppLogger.d('Repository: Obteniendo todos los ${fileName}');
-      final result = await _service.getAll();
-      AppLogger.d('Repository: Obtenidos \${result.length} ${fileName}');
-      return result;
-    } catch (e, stackTrace) {
-      AppLogger.e('Repository: Error al obtener ${fileName}', e, stackTrace);
+      return await _service.getAll();
+    } catch (e) {
       rethrow;
     }
   }
 
-  Future<${entityName}?> getById(${pkType} id) async {
+  Future<${entityName}?> getById(int id) async {
     try {
-      AppLogger.d('Repository: Obteniendo ${fileName} con ID: \$id');
-      final result = await _service.getById(id);
-      if (result == null) {
-        AppLogger.w('Repository: ${fileName} con ID \$id no encontrado');
-      }
-      return result;
-    } catch (e, stackTrace) {
-      AppLogger.e('Repository: Error al obtener ${fileName} con ID: \$id', e, stackTrace);
+      return await _service.getById(id);
+    } catch (e) {
       rethrow;
     }
   }
 
   Future<${entityName}> create(${entityName} entity) async {
     try {
-      AppLogger.d('Repository: Creando nuevo ${fileName}');
-      final result = await _service.create(entity);
-      AppLogger.i('Repository: ${fileName} creado exitosamente');
-      return result;
-    } catch (e, stackTrace) {
-      AppLogger.e('Repository: Error al crear ${fileName}', e, stackTrace);
+      return await _service.create(entity);
+    } catch (e) {
       rethrow;
     }
   }
 
-  Future<${entityName}> update(${pkType} id, ${entityName} entity) async {
+  Future<${entityName}> update(int id, ${entityName} entity) async {
     try {
-      AppLogger.d('Repository: Actualizando ${fileName} con ID: \$id');
-      final result = await _service.update(id, entity);
-      AppLogger.i('Repository: ${fileName} actualizado exitosamente');
-      return result;
-    } catch (e, stackTrace) {
-      AppLogger.e('Repository: Error al actualizar ${fileName} con ID: \$id', e, stackTrace);
+      return await _service.update(id, entity);
+    } catch (e) {
       rethrow;
     }
   }
 
-  Future<void> delete(${pkType} id) async {
+  Future<void> delete(int id) async {
     try {
-      AppLogger.d('Repository: Eliminando ${fileName} con ID: \$id');
       await _service.delete(id);
-      AppLogger.i('Repository: ${fileName} eliminado exitosamente');
-    } catch (e, stackTrace) {
-      AppLogger.e('Repository: Error al eliminar ${fileName} con ID: \$id', e, stackTrace);
+    } catch (e) {
       rethrow;
     }
   }
@@ -656,21 +585,15 @@ class ${className}Repository {
     const entityName = className
     const fileName = this.toSnakeCase(table.name)
     const resourceName = table.name.toLowerCase()
-    // Detectar PK para usar el tipo correcto
-    const pkField = table.fields.find(f => f.pk) || table.fields[0]
-    const pkType = this.getDartType(pkField?.type || 'integer')
 
     // Construir el código Dart de forma segura para evitar problemas con template strings
     const appConfigBaseUrl = 'AppConfig.baseUrl'
     const appConfigTimeout = 'AppConfig.requestTimeout'
 
-    return `import 'dart:io';
-import 'package:http/http.dart' as http;
+    return `import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../core/config/app_config.dart';
 import '../../core/utils/toast_utils.dart';
-import '../../core/utils/logger_util.dart';
-import '../../core/errors/app_exception.dart';
 import '../../domain/entities/${fileName}.dart';
 
 class ${className}Service {
@@ -678,367 +601,103 @@ class ${className}Service {
 
   Future<List<${entityName}>> getAll() async {
     try {
-      AppLogger.request('GET', baseUrl);
-      
       final response = await http.get(
         Uri.parse(baseUrl),
         headers: {'Content-Type': 'application/json'},
-      ).timeout(
-        const Duration(seconds: ${appConfigTimeout}),
-        onTimeout: () {
-          AppLogger.httpError('GET', baseUrl, 'Timeout', null);
-          throw TimeoutException('La solicitud para obtener ${resourceName} tardó demasiado');
-        },
-      );
-
-      AppLogger.response(response.statusCode, baseUrl);
+      ).timeout(const Duration(seconds: ${appConfigTimeout}));
 
       if (response.statusCode == 200) {
-        try {
-          final List<dynamic> jsonList = json.decode(response.body);
-          final items = jsonList.map((json) => ${entityName}.fromJson(json)).toList();
-          AppLogger.i('Obtenidos \${items.length} ${resourceName}');
-          return items;
-        } catch (e, stackTrace) {
-          AppLogger.e('Error al parsear respuesta de ${resourceName}', e, stackTrace);
-          throw ServerException(
-            'Error al procesar la respuesta del servidor',
-            statusCode: response.statusCode,
-            originalError: e,
-            stackTrace: stackTrace,
-          );
-        }
-      } else if (response.statusCode >= 400 && response.statusCode < 500) {
-        AppLogger.w('Error del cliente: \${response.statusCode}');
-        throw ServerException(
-          'Error al obtener ${resourceName}',
-          statusCode: response.statusCode,
-          responseData: _tryParseJson(response.body),
-        );
+        final List<dynamic> jsonList = json.decode(response.body);
+        return jsonList.map((json) => ${entityName}.fromJson(json)).toList();
       } else {
-        AppLogger.e('Error del servidor: \${response.statusCode}');
-        throw ServerException(
-          'Error del servidor al obtener ${resourceName}',
-          statusCode: response.statusCode,
-        );
+        ToastUtils.showError('Error al obtener datos: \${response.statusCode}');
+        throw Exception('Failed to load ${resourceName}');
       }
-    } on SocketException catch (e, stackTrace) {
-      AppLogger.httpError('GET', baseUrl, e, stackTrace);
-      throw NetworkException(
-        'No hay conexión a Internet',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
-    } on HttpException catch (e, stackTrace) {
-      AppLogger.httpError('GET', baseUrl, e, stackTrace);
-      throw NetworkException(
-        'Error de comunicación con el servidor',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
-    } on TimeoutException {
-      rethrow;
-    } on AppException {
-      rethrow;
-    } catch (e, stackTrace) {
-      AppLogger.httpError('GET', baseUrl, e, stackTrace);
-      throw AppException(
-        'Error inesperado al obtener ${resourceName}',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
-    }
-  }
-  
-  Map<String, dynamic>? _tryParseJson(String jsonString) {
-    try {
-      return json.decode(jsonString) as Map<String, dynamic>;
     } catch (e) {
-      return null;
+      ToastUtils.showError('Error de conexión: \${e.toString()}');
+      rethrow;
     }
   }
 
-  Future<${entityName}?> getById(${pkType} id) async {
+  Future<${entityName}?> getById(int id) async {
     try {
-      final url = '\$baseUrl/\$id';
-      AppLogger.request('GET', url);
-      
       final response = await http.get(
-        Uri.parse(url),
+        Uri.parse('\$baseUrl/\$id'),
         headers: {'Content-Type': 'application/json'},
-      ).timeout(
-        const Duration(seconds: ${appConfigTimeout}),
-        onTimeout: () {
-          AppLogger.httpError('GET', url, 'Timeout', null);
-          throw TimeoutException('La solicitud para obtener ${resourceName} tardó demasiado');
-        },
-      );
-
-      AppLogger.response(response.statusCode, url);
+      ).timeout(const Duration(seconds: ${appConfigTimeout}));
 
       if (response.statusCode == 200) {
-        try {
-          final item = ${entityName}.fromJson(json.decode(response.body));
-          AppLogger.i('Obtenido ${resourceName} con ID: \$id');
-          return item;
-        } catch (e, stackTrace) {
-          AppLogger.e('Error al parsear respuesta de ${resourceName}', e, stackTrace);
-          throw ServerException(
-            'Error al procesar la respuesta del servidor',
-            statusCode: response.statusCode,
-            originalError: e,
-            stackTrace: stackTrace,
-          );
-        }
+        return ${entityName}.fromJson(json.decode(response.body));
       } else if (response.statusCode == 404) {
-        AppLogger.w('${resourceName} no encontrado con ID: \$id');
         return null;
       } else {
-        AppLogger.e('Error al obtener ${resourceName}: \${response.statusCode}');
-        throw ServerException(
-          'Error al obtener ${resourceName}',
-          statusCode: response.statusCode,
-          responseData: _tryParseJson(response.body),
-        );
+        ToastUtils.showError('Error al obtener el registro');
+        throw Exception('Failed to load ${resourceName}');
       }
-    } on SocketException catch (e, stackTrace) {
-      AppLogger.httpError('GET', '\$baseUrl/\$id', e, stackTrace);
-      throw NetworkException(
-        'No hay conexión a Internet',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
-    } on HttpException catch (e, stackTrace) {
-      AppLogger.httpError('GET', '\$baseUrl/\$id', e, stackTrace);
-      throw NetworkException(
-        'Error de comunicación con el servidor',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
-    } on TimeoutException {
+    } catch (e) {
+      ToastUtils.showError('Error de conexión: \${e.toString()}');
       rethrow;
-    } on AppException {
-      rethrow;
-    } catch (e, stackTrace) {
-      AppLogger.httpError('GET', '\$baseUrl/\$id', e, stackTrace);
-      throw AppException(
-        'Error inesperado al obtener ${resourceName}',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
     }
   }
 
   Future<${entityName}> create(${entityName} entity) async {
     try {
-      AppLogger.request('POST', baseUrl, body: entity.toJson());
-      
       final response = await http.post(
         Uri.parse(baseUrl),
         headers: {'Content-Type': 'application/json'},
         body: json.encode(entity.toJson()),
-      ).timeout(
-        const Duration(seconds: ${appConfigTimeout}),
-        onTimeout: () {
-          AppLogger.httpError('POST', baseUrl, 'Timeout', null);
-          throw TimeoutException('La solicitud para crear ${resourceName} tardó demasiado');
-        },
-      );
-
-      AppLogger.response(response.statusCode, baseUrl);
+      ).timeout(const Duration(seconds: ${appConfigTimeout}));
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        try {
-          final created = ${entityName}.fromJson(json.decode(response.body));
-          AppLogger.i('${resourceName} creado exitosamente');
-          return created;
-        } catch (e, stackTrace) {
-          AppLogger.e('Error al parsear respuesta de creación de ${resourceName}', e, stackTrace);
-          throw ServerException(
-            'Error al procesar la respuesta del servidor',
-            statusCode: response.statusCode,
-            originalError: e,
-            stackTrace: stackTrace,
-          );
-        }
-      } else if (response.statusCode == 400) {
-        AppLogger.w('Error de validación al crear ${resourceName}');
-        final responseData = _tryParseJson(response.body);
-        throw ValidationException(
-          'Error de validación: Los datos ingresados no son válidos',
-          errors: responseData?['errors'] as Map<String, String>?,
-        );
+        ToastUtils.showSuccess('Registro creado exitosamente');
+        return ${entityName}.fromJson(json.decode(response.body));
       } else {
-        AppLogger.e('Error al crear ${resourceName}: \${response.statusCode}');
-        throw ServerException(
-          'Error al crear ${resourceName}',
-          statusCode: response.statusCode,
-          responseData: _tryParseJson(response.body),
-        );
+        ToastUtils.showError('Error al crear el registro');
+        throw Exception('Failed to create ${resourceName}');
       }
-    } on SocketException catch (e, stackTrace) {
-      AppLogger.httpError('POST', baseUrl, e, stackTrace);
-      throw NetworkException(
-        'No hay conexión a Internet',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
-    } on HttpException catch (e, stackTrace) {
-      AppLogger.httpError('POST', baseUrl, e, stackTrace);
-      throw NetworkException(
-        'Error de comunicación con el servidor',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
-    } on TimeoutException {
+    } catch (e) {
+      ToastUtils.showError('Error de conexión: \${e.toString()}');
       rethrow;
-    } on AppException {
-      rethrow;
-    } catch (e, stackTrace) {
-      AppLogger.httpError('POST', baseUrl, e, stackTrace);
-      throw AppException(
-        'Error inesperado al crear ${resourceName}',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
     }
   }
 
-  Future<${entityName}> update(${pkType} id, ${entityName} entity) async {
+  Future<${entityName}> update(int id, ${entityName} entity) async {
     try {
-      final url = '\$baseUrl/\$id';
-      AppLogger.request('PUT', url, body: entity.toJson());
-      
       final response = await http.put(
-        Uri.parse(url),
+        Uri.parse('\$baseUrl/\$id'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode(entity.toJson()),
-      ).timeout(
-        const Duration(seconds: ${appConfigTimeout}),
-        onTimeout: () {
-          AppLogger.httpError('PUT', url, 'Timeout', null);
-          throw TimeoutException('La solicitud para actualizar ${resourceName} tardó demasiado');
-        },
-      );
-
-      AppLogger.response(response.statusCode, url);
+      ).timeout(const Duration(seconds: ${appConfigTimeout}));
 
       if (response.statusCode == 200) {
-        try {
-          final updated = ${entityName}.fromJson(json.decode(response.body));
-          AppLogger.i('${resourceName} actualizado exitosamente');
-          return updated;
-        } catch (e, stackTrace) {
-          AppLogger.e('Error al parsear respuesta de actualización de ${resourceName}', e, stackTrace);
-          throw ServerException(
-            'Error al procesar la respuesta del servidor',
-            statusCode: response.statusCode,
-            originalError: e,
-            stackTrace: stackTrace,
-          );
-        }
-      } else if (response.statusCode == 404) {
-        AppLogger.w('${resourceName} no encontrado para actualizar: \$id');
-        throw NotFoundException('${resourceName} no encontrado');
-      } else if (response.statusCode == 400) {
-        AppLogger.w('Error de validación al actualizar ${resourceName}');
-        final responseData = _tryParseJson(response.body);
-        throw ValidationException(
-          'Error de validación: Los datos ingresados no son válidos',
-          errors: responseData?['errors'] as Map<String, String>?,
-        );
+        ToastUtils.showSuccess('Registro actualizado exitosamente');
+        return ${entityName}.fromJson(json.decode(response.body));
       } else {
-        AppLogger.e('Error al actualizar ${resourceName}: \${response.statusCode}');
-        throw ServerException(
-          'Error al actualizar ${resourceName}',
-          statusCode: response.statusCode,
-          responseData: _tryParseJson(response.body),
-        );
+        ToastUtils.showError('Error al actualizar el registro');
+        throw Exception('Failed to update ${resourceName}');
       }
-    } on SocketException catch (e, stackTrace) {
-      AppLogger.httpError('PUT', '\$baseUrl/\$id', e, stackTrace);
-      throw NetworkException(
-        'No hay conexión a Internet',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
-    } on HttpException catch (e, stackTrace) {
-      AppLogger.httpError('PUT', '\$baseUrl/\$id', e, stackTrace);
-      throw NetworkException(
-        'Error de comunicación con el servidor',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
-    } on TimeoutException {
+    } catch (e) {
+      ToastUtils.showError('Error de conexión: \${e.toString()}');
       rethrow;
-    } on AppException {
-      rethrow;
-    } catch (e, stackTrace) {
-      AppLogger.httpError('PUT', '\$baseUrl/\$id', e, stackTrace);
-      throw AppException(
-        'Error inesperado al actualizar ${resourceName}',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
     }
   }
 
-  Future<void> delete(${pkType} id) async {
+  Future<void> delete(int id) async {
     try {
-      final url = '\$baseUrl/\$id';
-      AppLogger.request('DELETE', url);
-      
       final response = await http.delete(
-        Uri.parse(url),
+        Uri.parse('\$baseUrl/\$id'),
         headers: {'Content-Type': 'application/json'},
-      ).timeout(
-        const Duration(seconds: ${appConfigTimeout}),
-        onTimeout: () {
-          AppLogger.httpError('DELETE', url, 'Timeout', null);
-          throw TimeoutException('La solicitud para eliminar ${resourceName} tardó demasiado');
-        },
-      );
-
-      AppLogger.response(response.statusCode, url);
+      ).timeout(const Duration(seconds: ${appConfigTimeout}));
 
       if (response.statusCode == 200 || response.statusCode == 204) {
-        AppLogger.i('${resourceName} eliminado exitosamente');
-      } else if (response.statusCode == 404) {
-        AppLogger.w('${resourceName} no encontrado para eliminar: \$id');
-        throw NotFoundException('${resourceName} no encontrado');
+        ToastUtils.showSuccess('Registro eliminado exitosamente');
       } else {
-        AppLogger.e('Error al eliminar ${resourceName}: \${response.statusCode}');
-        throw ServerException(
-          'Error al eliminar ${resourceName}',
-          statusCode: response.statusCode,
-          responseData: _tryParseJson(response.body),
-        );
+        ToastUtils.showError('Error al eliminar el registro');
+        throw Exception('Failed to delete ${resourceName}');
       }
-    } on SocketException catch (e, stackTrace) {
-      AppLogger.httpError('DELETE', '\$baseUrl/\$id', e, stackTrace);
-      throw NetworkException(
-        'No hay conexión a Internet',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
-    } on HttpException catch (e, stackTrace) {
-      AppLogger.httpError('DELETE', '\$baseUrl/\$id', e, stackTrace);
-      throw NetworkException(
-        'Error de comunicación con el servidor',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
-    } on TimeoutException {
+    } catch (e) {
+      ToastUtils.showError('Error de conexión: \${e.toString()}');
       rethrow;
-    } on AppException {
-      rethrow;
-    } catch (e, stackTrace) {
-      AppLogger.httpError('DELETE', '\$baseUrl/\$id', e, stackTrace);
-      throw AppException(
-        'Error inesperado al eliminar ${resourceName}',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
     }
   }
 }
@@ -1056,8 +715,6 @@ class ${className}Service {
     return `import 'package:flutter/foundation.dart';
 import '../../domain/entities/${fileName}.dart';
 import '../../data/repositories/${fileName}_repository.dart';
-import '../../core/errors/app_exception.dart';
-import '../../core/utils/logger_util.dart';
 
 // Nota: Este provider usa el paquete 'provider'
 // Para usar Riverpod, importa el archivo ${fileName}_riverpod.dart
@@ -1070,9 +727,7 @@ class ${className}Provider with ChangeNotifier {
   List<${className}> _items = [];
   List<${className}> _filteredItems = [];
   bool _isLoading = false;
-  bool _isSaving = false;
-  bool _isDeleting = false;
-  AppException? _error;
+  String? _error;
   String _searchQuery = '';
   String? _sortField;
   bool _sortAscending = true;
@@ -1084,10 +739,7 @@ class ${className}Provider with ChangeNotifier {
     return _filteredItems;
   }
   bool get isLoading => _isLoading;
-  bool get isSaving => _isSaving;
-  bool get isDeleting => _isDeleting;
-  AppException? get error => _error;
-  String? get errorMessage => _error?.userMessage;
+  String? get error => _error;
   String get searchQuery => _searchQuery;
   String? get sortField => _sortField;
   bool get sortAscending => _sortAscending;
@@ -1098,21 +750,11 @@ class ${className}Provider with ChangeNotifier {
     notifyListeners();
 
     try {
-      AppLogger.i('Cargando lista de ${fileName}');
       _items = await _repository.getAll();
       _applyFilters();
       _error = null;
-      AppLogger.i('Lista de ${fileName} cargada exitosamente: \${_items.length} items');
-    } on AppException catch (e, stackTrace) {
-      AppLogger.e('Error al cargar ${fileName}', e, stackTrace);
-      _error = e;
-    } catch (e, stackTrace) {
-      AppLogger.e('Error inesperado al cargar ${fileName}', e, stackTrace);
-      _error = AppException(
-        'Error inesperado al cargar la lista',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
+    } catch (e) {
+      _error = e.toString();
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -1157,101 +799,43 @@ class ${className}Provider with ChangeNotifier {
   }
 
   Future<void> create(${className} item) async {
-    _isSaving = true;
-    _error = null;
-    notifyListeners();
-
     try {
-      AppLogger.i('Creando nuevo ${fileName}');
       final created = await _repository.create(item);
       _items.add(created);
-      _applyFilters();
-      _error = null;
-      AppLogger.i('${fileName} creado exitosamente con ID: \${created.${pkName}}');
-    } on AppException catch (e, stackTrace) {
-      AppLogger.e('Error al crear ${fileName}', e, stackTrace);
-      _error = e;
+      notifyListeners();
+    } catch (e) {
+      _error = e.toString();
       notifyListeners();
       rethrow;
-    } catch (e, stackTrace) {
-      AppLogger.e('Error inesperado al crear ${fileName}', e, stackTrace);
-      _error = AppException(
-        'Error inesperado al crear el registro',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
-      notifyListeners();
-      rethrow;
-    } finally {
-      _isSaving = false;
-      notifyListeners();
     }
   }
 
   Future<void> update(${pkType} id, ${className} item) async {
-    _isSaving = true;
-    _error = null;
-    notifyListeners();
-
     try {
-      AppLogger.i('Actualizando ${fileName} con ID: \$id');
       final updated = await _repository.update(id, item);
       final index = _items.indexWhere((i) => i.${pkName} == id);
       if (index != -1) {
         _items[index] = updated;
         _applyFilters();
-        _error = null;
-        AppLogger.i('${fileName} actualizado exitosamente');
+        notifyListeners();
       }
-    } on AppException catch (e, stackTrace) {
-      AppLogger.e('Error al actualizar ${fileName}', e, stackTrace);
-      _error = e;
+    } catch (e) {
+      _error = e.toString();
       notifyListeners();
       rethrow;
-    } catch (e, stackTrace) {
-      AppLogger.e('Error inesperado al actualizar ${fileName}', e, stackTrace);
-      _error = AppException(
-        'Error inesperado al actualizar el registro',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
-      notifyListeners();
-      rethrow;
-    } finally {
-      _isSaving = false;
-      notifyListeners();
     }
   }
 
   Future<void> delete(${pkType} id) async {
-    _isDeleting = true;
-    _error = null;
-    notifyListeners();
-
     try {
-      AppLogger.i('Eliminando ${fileName} con ID: \$id');
       await _repository.delete(id);
       _items.removeWhere((i) => i.${pkName} == id);
       _applyFilters();
-      _error = null;
-      AppLogger.i('${fileName} eliminado exitosamente');
-    } on AppException catch (e, stackTrace) {
-      AppLogger.e('Error al eliminar ${fileName}', e, stackTrace);
-      _error = e;
+      notifyListeners();
+    } catch (e) {
+      _error = e.toString();
       notifyListeners();
       rethrow;
-    } catch (e, stackTrace) {
-      AppLogger.e('Error inesperado al eliminar ${fileName}', e, stackTrace);
-      _error = AppException(
-        'Error inesperado al eliminar el registro',
-        originalError: e,
-        stackTrace: stackTrace,
-      );
-      notifyListeners();
-      rethrow;
-    } finally {
-      _isDeleting = false;
-      notifyListeners();
     }
   }
 
@@ -1278,11 +862,11 @@ class ${className}Provider with ChangeNotifier {
     return `import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/${fileName}.dart';
 import '../../data/repositories/${fileName}_repository.dart';
+import '../../data/services/${fileName}_service.dart';
 
 // Repository Provider
 final ${providerName}RepositoryProvider = Provider<${className}Repository>((ref) {
-  // Inyectar dependencias aquí
-  throw UnimplementedError('Implementar inyección de dependencias');
+  return ${className}Repository(${className}Service());
 });
 
 // State Provider para la lista
@@ -1566,8 +1150,25 @@ import '${fileName}_form_screen.dart';
 import '${fileName}_detail_screen.dart';
 import '../../core/utils/export_service.dart';
 
-class ${className}ListScreen extends StatelessWidget {
+class ${className}ListScreen extends StatefulWidget {
   const ${className}ListScreen({super.key});
+
+  @override
+  State<${className}ListScreen> createState() => _${className}ListScreenState();
+}
+
+class _${className}ListScreenState extends State<${className}ListScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Cargar datos cuando se abre la pantalla
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = Provider.of<${className}Provider>(context, listen: false);
+      if (provider.items.isEmpty && !provider.isLoading) {
+        provider.loadAll();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1577,12 +1178,12 @@ class ${className}ListScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.download),
-            onPressed: () => _exportData(context),
+            onPressed: () => _exportData(),
             tooltip: 'Exportar datos',
           ),
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: () => _navigateToForm(context),
+            onPressed: () => _navigateToForm(),
             tooltip: 'Agregar nuevo',
           ),
         ],
@@ -1600,14 +1201,7 @@ class ${className}ListScreen extends StatelessWidget {
                 children: [
                   const Icon(Icons.error_outline, size: 64, color: Colors.red),
                   const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                    child: Text(
-                      provider.errorMessage ?? 'Error desconocido',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                  ),
+                  Text('Error: \${provider.error}'),
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () => provider.loadAll(),
@@ -1621,7 +1215,7 @@ class ${className}ListScreen extends StatelessWidget {
           if (provider.items.isEmpty) {
             return EmptyStateWidget(
               message: 'No hay registros de ${displayName.toLowerCase()}',
-              onAction: () => _navigateToForm(context),
+              onAction: () => _navigateToForm(),
               actionLabel: 'Agregar primero',
             );
           }
@@ -1643,15 +1237,15 @@ class ${className}ListScreen extends StatelessWidget {
                       children: [
                         IconButton(
                           icon: const Icon(Icons.edit),
-                          onPressed: () => _navigateToEdit(context, item),
+                          onPressed: () => _navigateToEdit(item),
                         ),
                         IconButton(
                           icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _confirmDelete(context, provider, item),
+                          onPressed: () => _confirmDelete(provider, item),
                         ),
                       ],
                     ),
-                    onTap: () => _navigateToDetail(context, item),
+                    onTap: () => _navigateToDetail(item),
                   ),
                 );
               },
@@ -1661,13 +1255,13 @@ class ${className}ListScreen extends StatelessWidget {
       ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'fab_${fileName}',
-        onPressed: () => _navigateToForm(context),
+        onPressed: () => _navigateToForm(),
         child: const Icon(Icons.add),
       ),
     );
   }
 
-  void _navigateToForm(BuildContext context) {
+  void _navigateToForm() {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1676,7 +1270,7 @@ class ${className}ListScreen extends StatelessWidget {
     );
   }
 
-  void _navigateToEdit(BuildContext context, ${className} item) {
+  void _navigateToEdit(${className} item) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1685,7 +1279,7 @@ class ${className}ListScreen extends StatelessWidget {
     );
   }
 
-  void _navigateToDetail(BuildContext context, ${className} item) {
+  void _navigateToDetail(${className} item) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1694,49 +1288,33 @@ class ${className}ListScreen extends StatelessWidget {
     );
   }
 
-  void _confirmDelete(BuildContext context, ${className}Provider provider, ${className} item) {
+  void _confirmDelete(${className}Provider provider, ${className} item) {
     final itemId = item.${pkFieldName};
     if (itemId == null) return;
     
     showDialog(
       context: context,
-      builder: (dialogContext) => Consumer<${className}Provider>(
-        builder: (context, providerState, child) {
-          return AlertDialog(
-            title: const Text('Confirmar eliminación'),
-            content: const Text('¿Está seguro de eliminar este registro?'),
-            actions: [
-              TextButton(
-                onPressed: providerState.isDeleting ? null : () => Navigator.pop(dialogContext),
-                child: const Text('Cancelar'),
-              ),
-              TextButton(
-                onPressed: providerState.isDeleting ? null : () async {
-                  try {
-                    await providerState.delete(itemId);
-                    if (dialogContext.mounted) {
-                      Navigator.pop(dialogContext);
-                    }
-                  } catch (e) {
-                    // Error ya manejado en el provider
-                  }
-                },
-                child: providerState.isDeleting
-                    ? const SizedBox(
-                        height: 16,
-                        width: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Eliminar', style: TextStyle(color: Colors.red)),
-              ),
-            ],
-          );
-        },
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar eliminación'),
+        content: const Text('¿Está seguro de eliminar este registro?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () {
+              provider.delete(itemId);
+              Navigator.pop(context);
+            },
+            child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
   }
 
-  Future<void> _exportData(BuildContext context) async {
+  Future<void> _exportData() async {
     final provider = Provider.of<${className}Provider>(context, listen: false);
     try {
       await ExportService.exportToExcel(provider.items, '${displayName}');
@@ -1765,7 +1343,17 @@ class ${className}ListScreen extends StatelessWidget {
     const pkFieldName = this.toCamelCase(pkField.name)
 
     const formFields = table.fields
-      .filter(f => !f.pk || !f.increment)
+      .filter(f => {
+        // Excluir PKs auto-incrementales
+        if (f.pk && f.increment) return false
+        // Excluir campos de auditoría (created_at, updated_at, etc.)
+        const fieldNameLower = f.name.toLowerCase()
+        if (fieldNameLower === 'created_at' || fieldNameLower === 'updated_at' || 
+            fieldNameLower === 'createdat' || fieldNameLower === 'updatedat') {
+          return false
+        }
+        return true
+      })
       .map(field => {
         const fieldName = this.toCamelCase(field.name)
         const fieldDisplayName = this.formatDisplayName(field.name)
@@ -1776,6 +1364,13 @@ class ${className}ListScreen extends StatelessWidget {
           return `          CustomDateField(
             label: '${fieldDisplayName}',
             value: _item?.${fieldName},
+            onChanged: (value) => setState(() => _item = (_item ?? ${className}()).copyWith(${fieldName}: value)),
+            required: ${isRequired},
+          ),`
+        } else if (dartType === 'bool') {
+          return `          CustomSwitch(
+            label: '${fieldDisplayName}',
+            value: _item?.${fieldName} ?? false,
             onChanged: (value) => setState(() => _item = (_item ?? ${className}()).copyWith(${fieldName}: value)),
             required: ${isRequired},
           ),`
@@ -1804,8 +1399,8 @@ import '../../presentation/providers/${fileName}_provider.dart';
 import '../widgets/forms/custom_text_field.dart';
 import '../widgets/forms/custom_number_field.dart';
 import '../widgets/forms/custom_date_field.dart';
+import '../widgets/forms/custom_switch.dart';
 import '../../core/utils/toast_utils.dart';
-import '../../core/errors/app_exception.dart';
 
 class ${className}FormScreen extends StatefulWidget {
   final ${className}? item;
@@ -1819,6 +1414,7 @@ class ${className}FormScreen extends StatefulWidget {
 class _${className}FormScreenState extends State<${className}FormScreen> {
   ${className}? _item;
   final _formKey = GlobalKey<FormState>();
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -1841,19 +1437,11 @@ class _${className}FormScreenState extends State<${className}FormScreen> {
           children: [
 ${formFields}
             const SizedBox(height: 24),
-            Consumer<${className}Provider>(
-              builder: (context, provider, child) {
-                return ElevatedButton(
-                  onPressed: provider.isSaving ? null : _save,
-                  child: provider.isSaving
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(isEditing ? 'Actualizar' : 'Guardar'),
-                );
-              },
+            ElevatedButton(
+              onPressed: _isSaving ? null : _save,
+              child: _isSaving
+                  ? const CircularProgressIndicator()
+                  : Text(isEditing ? 'Actualizar' : 'Guardar'),
             ),
           ],
         ),
@@ -1867,6 +1455,8 @@ ${formFields}
         _item = ${className}();
       }
       
+      setState(() => _isSaving = true);
+
       try {
         final provider = Provider.of<${className}Provider>(context, listen: false);
         
@@ -1881,15 +1471,15 @@ ${formFields}
 
         if (mounted) {
           Navigator.pop(context);
-          ToastUtils.showSuccess(widget.item != null ? 'Actualizado exitosamente' : 'Creado exitosamente');
-        }
-      } on AppException catch (e) {
-        if (mounted) {
-          ToastUtils.showError(e.userMessage);
+          ToastUtils.show(context, widget.item != null ? 'Actualizado exitosamente' : 'Creado exitosamente');
         }
       } catch (e) {
         if (mounted) {
-          ToastUtils.showError('Error inesperado al guardar');
+          ToastUtils.show(context, 'Error al guardar: \${e.toString()}', isError: true);
+        }
+      } finally {
+        if (mounted) {
+          setState(() => _isSaving = false);
         }
       }
     }
@@ -2178,6 +1768,41 @@ class CustomDateField extends StatelessWidget {
         }
         return null;
       },
+    );
+  }
+}
+`
+  }
+
+  generateSwitchWidget() {
+    return `import 'package:flutter/material.dart';
+
+class CustomSwitch extends StatelessWidget {
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final bool required;
+
+  const CustomSwitch({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    this.required = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SwitchListTile(
+      title: Text(label + (required ? ' *' : '')),
+      value: value,
+      onChanged: onChanged,
+      subtitle: required && !value
+          ? const Text(
+              'Este campo es requerido',
+              style: TextStyle(color: Colors.red, fontSize: 12),
+            )
+          : null,
     );
   }
 }
@@ -2641,21 +2266,27 @@ class DateUtils {
     return `import 'package:flutter/material.dart';
 
 class ToastUtils {
+  // Nota: Los métodos showSuccess, showError, etc. requieren contexto
+  // Para usar estos métodos sin contexto, usa ToastUtils.show(context, message)
+  
   static void showSuccess(String message) {
-    // Implementación con SnackBar o toast
-    // Por ahora usamos un método estático que puede ser extendido
+    // Este método requiere contexto, usar show() en su lugar
+    // Se mantiene para compatibilidad pero no hace nada sin contexto
   }
 
   static void showError(String message) {
-    // Implementación con SnackBar o toast
+    // Este método requiere contexto, usar show() en su lugar
+    // Se mantiene para compatibilidad pero no hace nada sin contexto
   }
 
   static void showInfo(String message) {
-    // Implementación con SnackBar o toast
+    // Este método requiere contexto, usar show() en su lugar
+    // Se mantiene para compatibilidad pero no hace nada sin contexto
   }
 
   static void showWarning(String message) {
-    // Implementación con SnackBar o toast
+    // Este método requiere contexto, usar show() en su lugar
+    // Se mantiene para compatibilidad pero no hace nada sin contexto
   }
 
   static void show(BuildContext context, String message, {bool isError = false}) {
@@ -2940,25 +2571,27 @@ La aplicación soporta tema claro y oscuro. Puedes cambiar el tema desde la conf
 
   generateFromJsonField(field, dartType) {
     const fieldName = this.toCamelCase(field.name)
+    const jsonKey = fieldName // Usar camelCase para coincidir con Spring Boot DTOs
     if (dartType === 'DateTime') {
-      return `      ${fieldName}: json['${field.name}'] != null ? DateTime.parse(json['${field.name}'] as String) : null`
+      return `      ${fieldName}: json['${jsonKey}'] != null ? DateTime.parse(json['${jsonKey}'] as String) : null`
     } else if (dartType === 'int') {
-      return `      ${fieldName}: json['${field.name}'] != null ? (json['${field.name}'] as num).toInt() : null`
+      return `      ${fieldName}: json['${jsonKey}'] != null ? (json['${jsonKey}'] as num).toInt() : null`
     } else if (dartType === 'double') {
-      return `      ${fieldName}: json['${field.name}'] != null ? (json['${field.name}'] as num).toDouble() : null`
+      return `      ${fieldName}: json['${jsonKey}'] != null ? (json['${jsonKey}'] as num).toDouble() : null`
     } else if (dartType === 'bool') {
-      return `      ${fieldName}: json['${field.name}'] as bool?`
+      return `      ${fieldName}: json['${jsonKey}'] as bool?`
     } else {
-      return `      ${fieldName}: json['${field.name}'] as String?`
+      return `      ${fieldName}: json['${jsonKey}'] as String?`
     }
   }
 
   generateToJsonField(field, dartType) {
     const fieldName = this.toCamelCase(field.name)
+    const jsonKey = fieldName // Usar camelCase para coincidir con Spring Boot DTOs
     if (dartType === 'DateTime') {
-      return `'${field.name}': ${fieldName}?.toIso8601String()`
+      return `      '${jsonKey}': ${fieldName}?.toIso8601String()`
     } else {
-      return `'${field.name}': ${fieldName}`
+      return `      '${jsonKey}': ${fieldName}`
     }
   }
 
@@ -2979,614 +2612,6 @@ La aplicación soporta tema claro y oscuro. Puedes cambiar el tema desde la conf
       .split('_')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ')
-  }
-
-  generateErrorClasses() {
-    // eslint-disable-next-line no-useless-escape
-    return `/// Clases de error específicas para manejo de excepciones en la aplicación
-
-/// Clase base para todas las excepciones de la aplicación
-class AppException implements Exception {
-  final String message;
-  final String? code;
-  final dynamic originalError;
-  final StackTrace? stackTrace;
-
-  AppException(
-    this.message, {
-    this.code,
-    this.originalError,
-    this.stackTrace,
-  });
-
-  @override
-  String toString() {
-    if (code != null) {
-      return 'AppException: \$message (code: \$code)';
-    }
-    return 'AppException: \$message';
-  }
-
-  /// Obtiene un mensaje user-friendly
-  String get userMessage => message;
-}
-
-/// Excepción de red (sin conexión, timeout, etc.)
-class NetworkException extends AppException {
-  NetworkException(
-    String message, {
-    dynamic originalError,
-    StackTrace? stackTrace,
-  }) : super(
-          message,
-          code: 'NETWORK_ERROR',
-          originalError: originalError,
-          stackTrace: stackTrace,
-        );
-
-  @override
-  String get userMessage => 'Error de conexión. Verifique su conexión a Internet e intente nuevamente.';
-}
-
-/// Excepción del servidor (errores HTTP 4xx, 5xx)
-class ServerException extends AppException {
-  final int? statusCode;
-  final Map<String, dynamic>? responseData;
-
-  ServerException(
-    String message, {
-    this.statusCode,
-    this.responseData,
-    String? code,
-    dynamic originalError,
-    StackTrace? stackTrace,
-  }) : super(
-          message,
-          code: code ?? 'SERVER_ERROR',
-          originalError: originalError,
-          stackTrace: stackTrace,
-        );
-
-  @override
-  String get userMessage {
-    if (statusCode != null) {
-      switch (statusCode) {
-        case 400:
-          return 'Solicitud inválida. Por favor, verifique los datos ingresados.';
-        case 401:
-          return 'No autorizado. Por favor, inicie sesión nuevamente.';
-        case 403:
-          return 'Acceso denegado. No tiene permisos para realizar esta acción.';
-        case 404:
-          return 'Recurso no encontrado.';
-        case 500:
-          return 'Error del servidor. Por favor, intente nuevamente más tarde.';
-        case 503:
-          return 'Servicio no disponible. Por favor, intente nuevamente más tarde.';
-        default:
-          final codeStr = statusCode.toString();
-          return 'Error del servidor (código: \$codeStr). Por favor, intente nuevamente.';
-      }
-    }
-    return 'Error del servidor. Por favor, intente nuevamente.';
-  }
-}
-
-/// Excepción de validación (datos inválidos)
-class ValidationException extends AppException {
-  final Map<String, String>? errors;
-
-  ValidationException(
-    String message, {
-    this.errors,
-    dynamic originalError,
-    StackTrace? stackTrace,
-  }) : super(
-          message,
-          code: 'VALIDATION_ERROR',
-          originalError: originalError,
-          stackTrace: stackTrace,
-        );
-
-  @override
-  String get userMessage => message;
-}
-
-/// Excepción de timeout
-class TimeoutException extends AppException {
-  TimeoutException(
-    String message, {
-    dynamic originalError,
-    StackTrace? stackTrace,
-  }) : super(
-          message,
-          code: 'TIMEOUT_ERROR',
-          originalError: originalError,
-          stackTrace: stackTrace,
-        );
-
-  @override
-  String get userMessage => 'La solicitud tardó demasiado. Por favor, intente nuevamente.';
-}
-
-/// Excepción de datos no encontrados
-class NotFoundException extends AppException {
-  NotFoundException(
-    String message, {
-    dynamic originalError,
-    StackTrace? stackTrace,
-  }) : super(
-          message,
-          code: 'NOT_FOUND',
-          originalError: originalError,
-          stackTrace: stackTrace,
-        );
-
-  @override
-  String get userMessage => 'Recurso no encontrado.';
-}
-
-/// Excepción de permisos
-class UnauthorizedException extends AppException {
-  UnauthorizedException(
-    String message, {
-    dynamic originalError,
-    StackTrace? stackTrace,
-  }) : super(
-          message,
-          code: 'UNAUTHORIZED',
-          originalError: originalError,
-          stackTrace: stackTrace,
-        );
-
-  @override
-  String get userMessage => 'No autorizado. Por favor, inicie sesión nuevamente.';
-}
-`
-  }
-
-  generateLoggerUtil() {
-    // Genera código Dart - el linter puede mostrar errores aquí (falsos positivos)
-    // eslint-disable-next-line
-    return `import 'package:logger/logger.dart';
-
-/// Utilidad para logging estructurado en la aplicación
-class AppLogger {
-  static final Logger _logger = Logger(
-    printer: PrettyPrinter(
-      methodCount: 2,
-      errorMethodCount: 8,
-      lineLength: 120,
-      colors: true,
-      printEmojis: true,
-      printTime: true,
-    ),
-    level: Level.debug,
-  );
-
-  /// Log de debug (información detallada para desarrollo)
-  static void d(String message, [dynamic error, StackTrace? stackTrace]) {
-    _logger.d(message, error: error, stackTrace: stackTrace);
-  }
-
-  /// Log de información (eventos importantes)
-  static void i(String message, [dynamic error, StackTrace? stackTrace]) {
-    _logger.i(message, error: error, stackTrace: stackTrace);
-  }
-
-  /// Log de advertencia (situaciones anómalas pero no críticas)
-  static void w(String message, [dynamic error, StackTrace? stackTrace]) {
-    _logger.w(message, error: error, stackTrace: stackTrace);
-  }
-
-  /// Log de error (errores que requieren atención)
-  static void e(String message, [dynamic error, StackTrace? stackTrace]) {
-    _logger.e(message, error: error, stackTrace: stackTrace);
-  }
-
-  /// Log de error fatal (errores críticos que detienen la aplicación)
-  static void f(String message, [dynamic error, StackTrace? stackTrace]) {
-    _logger.f(message, error: error, stackTrace: stackTrace);
-  }
-
-  /// Log de request HTTP
-  static void request(String method, String url, {Map<String, dynamic>? headers, dynamic body}) {
-    _logger.d(
-      'HTTP Request: \$method \$url',
-      null,
-      null,
-    );
-    if (headers != null) {
-      _logger.d('Headers: \$headers');
-    }
-    if (body != null) {
-      _logger.d('Body: \$body');
-    }
-  }
-
-  /// Log de response HTTP
-  static void response(int statusCode, String url, {dynamic body}) {
-    if (statusCode >= 200 && statusCode < 300) {
-      _logger.i('HTTP Response: \$statusCode \$url');
-    } else {
-      _logger.w('HTTP Response: \$statusCode \$url');
-    }
-    if (body != null) {
-      _logger.d('Response Body: \$body');
-    }
-  }
-
-  /// Log de error HTTP
-  static void httpError(String method, String url, dynamic error, StackTrace? stackTrace) {
-    _logger.e(
-      'HTTP Error: \$method \$url',
-      error,
-      stackTrace,
-    );
-  }
-}
-`
-  }
-
-  generateProviderTest(table) {
-    const className = this.capitalize(this.toCamelCase(table.name))
-    const fileName = this.toSnakeCase(table.name)
-    const pkField = table.fields.find(f => f.pk) || table.fields[0]
-    const pkName = pkField ? this.toCamelCase(pkField.name) : 'id'
-    const pkType = this.getDartType(pkField?.type || 'integer')
-    // eslint-disable-next-line no-useless-escape
-    return `import 'package:flutter_test/flutter_test.dart';
-import 'package:${this.appName}/domain/entities/${fileName}.dart';
-import 'package:${this.appName}/data/repositories/${fileName}_repository.dart';
-import 'package:${this.appName}/presentation/providers/${fileName}_provider.dart';
-import 'package:${this.appName}/core/errors/app_exception.dart';
-
-// Nota: Estos tests requieren mocks del repositorio
-// Ejecuta: flutter pub run build_runner build
-
-void main() {
-  group('${className}Provider', () {
-    late ${className}Repository mockRepository;
-    late ${className}Provider provider;
-
-    setUp(() {
-      // TODO: Crear mock del repositorio usando mockito
-      // mockRepository = Mock${className}Repository();
-      // provider = ${className}Provider(mockRepository);
-    });
-
-    test('loadAll should load all items', () async {
-      // Arrange
-      // final expectedItems = [/* items de prueba */];
-      // when(mockRepository.getAll()).thenAnswer((_) async => expectedItems);
-
-      // Act
-      // await provider.loadAll();
-
-      // Assert
-      // expect(provider.items, equals(expectedItems));
-      // expect(provider.isLoading, isFalse);
-      // expect(provider.error, isNull);
-    });
-
-    test('loadAll should handle errors', () async {
-      // Arrange
-      // when(mockRepository.getAll()).thenThrow(NetworkException('No hay conexión'));
-
-      // Act
-      // await provider.loadAll();
-
-      // Assert
-      // expect(provider.error, isA<NetworkException>());
-      // expect(provider.isLoading, isFalse);
-    });
-
-    test('create should add new item', () async {
-      // Arrange
-      // final newItem = ${className}(/* datos de prueba */);
-      // final createdItem = newItem.copyWith(${pkName}: 1);
-      // when(mockRepository.create(newItem)).thenAnswer((_) async => createdItem);
-
-      // Act
-      // await provider.create(newItem);
-
-      // Assert
-      // expect(provider.items, contains(createdItem));
-      // expect(provider.isSaving, isFalse);
-    });
-
-    test('update should update existing item', () async {
-      // Arrange
-      // final itemId = 1;
-      // final updatedItem = ${className}(/* datos actualizados */);
-      // when(mockRepository.update(itemId, any)).thenAnswer((_) async => updatedItem);
-
-      // Act
-      // await provider.update(itemId, updatedItem);
-
-      // Assert
-      // expect(provider.items.any((i) => i.${pkName} == itemId), isTrue);
-      // expect(provider.isSaving, isFalse);
-    });
-
-    test('delete should remove item', () async {
-      // Arrange
-      // final itemId = 1;
-      // when(mockRepository.delete(itemId)).thenAnswer((_) async => null);
-
-      // Act
-      // await provider.delete(itemId);
-
-      // Assert
-      // expect(provider.items.any((i) => i.${pkName} == itemId), isFalse);
-      // expect(provider.isDeleting, isFalse);
-    });
-
-    test('setSearchQuery should filter items', () {
-      // Arrange
-      // provider._items = [/* items de prueba */];
-      
-      // Act
-      // provider.setSearchQuery('search term');
-
-      // Assert
-      // expect(provider.searchQuery, equals('search term'));
-      // expect(provider.items.length, lessThanOrEqualTo(provider._items.length));
-    });
-
-    test('setSortField should sort items', () {
-      // Arrange
-      // provider._items = [/* items de prueba */];
-      
-      // Act
-      // provider.setSortField('name');
-
-      // Assert
-      // expect(provider.sortField, equals('name'));
-      // expect(provider.sortAscending, isTrue);
-    });
-  });
-}
-`
-  }
-
-  generateServiceTest(table) {
-    const className = this.capitalize(this.toCamelCase(table.name))
-    const fileName = this.toSnakeCase(table.name)
-    const pkField = table.fields.find(f => f.pk) || table.fields[0]
-    const pkName = pkField ? this.toCamelCase(pkField.name) : 'id'
-    const pkType = this.getDartType(pkField?.type || 'integer')
-    // Genera código Dart - el linter puede mostrar errores aquí (falsos positivos)
-    // eslint-disable-next-line
-    return `import 'package:flutter_test/flutter_test.dart';
-import 'package:${this.appName}/data/services/${fileName}_service.dart';
-import 'package:${this.appName}/domain/entities/${fileName}.dart';
-import 'package:${this.appName}/core/errors/app_exception.dart';
-import 'package:http/http.dart' as http;
-import 'package:http/testing.dart' as http_testing;
-import 'dart:convert';
-
-void main() {
-  group('${className}Service', () {
-    late ${className}Service service;
-
-    setUp(() {
-      service = ${className}Service();
-    });
-
-    test('getAll should return list of items on success', () async {
-      // Arrange
-      final mockResponse = [
-        {'${pkName}': 1, 'name': 'Test 1'},
-        {'${pkName}': 2, 'name': 'Test 2'},
-      ];
-
-      // Nota: Para tests reales, necesitarías mockear http.Client
-      // Esto es un ejemplo de la estructura del test
-      
-      // Act & Assert
-      // expect(result, isA<List<${className}>>());
-      // expect(result.length, equals(2));
-    });
-
-    test('getAll should throw NetworkException on network error', () async {
-      // Arrange
-      // Mock http client para simular error de red
-
-      // Act & Assert
-      // expect(() => service.getAll(), throwsA(isA<NetworkException>()));
-    });
-
-    test('getAll should throw ServerException on server error', () async {
-      // Arrange
-      // Mock http client para simular error del servidor (500)
-
-      // Act & Assert
-      // expect(() => service.getAll(), throwsA(isA<ServerException>()));
-    });
-
-    test('getById should return item on success', () async {
-      // Arrange
-      final itemId = 1;
-      final mockResponse = {'${pkName}': itemId, 'name': 'Test'};
-
-      // Act & Assert
-      // expect(result, isA<${className}>());
-      // expect(result?.${pkName}, equals(itemId));
-    });
-
-    test('getById should return null on 404', () async {
-      // Arrange
-      final itemId = 999;
-
-      // Act
-      // final result = await service.getById(itemId);
-
-      // Assert
-      // expect(result, isNull);
-    });
-
-    test('create should return created item', () async {
-      // Arrange
-      final newItem = ${className}(/* datos de prueba */);
-      final mockResponse = {'${pkName}': 1, 'name': 'Test'};
-
-      // Act & Assert
-      // expect(result, isA<${className}>());
-      // expect(result.${pkName}, isNotNull);
-    });
-
-    test('create should throw ValidationException on 400', () async {
-      // Arrange
-      final invalidItem = ${className}(/* datos inválidos */);
-
-      // Act & Assert
-      // expect(() => service.create(invalidItem), throwsA(isA<ValidationException>()));
-    });
-
-    test('update should return updated item', () async {
-      // Arrange
-      final itemId = 1;
-      final updatedItem = ${className}(/* datos actualizados */);
-
-      // Act & Assert
-      // expect(result, isA<${className}>());
-    });
-
-    test('update should throw NotFoundException on 404', () async {
-      // Arrange
-      final itemId = 999;
-      final item = ${className}(/* datos */);
-
-      // Act & Assert
-      // expect(() => service.update(itemId, item), throwsA(isA<NotFoundException>()));
-    });
-
-    test('delete should succeed on 200', () async {
-      // Arrange
-      final itemId = 1;
-
-      // Act & Assert
-      // expect(() => service.delete(itemId), returnsNormally);
-    });
-
-    test('delete should throw NotFoundException on 404', () async {
-      // Arrange
-      final itemId = 999;
-
-      // Act & Assert
-      // expect(() => service.delete(itemId), throwsA(isA<NotFoundException>()));
-    });
-  });
-}
-`
-  }
-
-  generateRepositoryTest(table) {
-    const className = this.capitalize(this.toCamelCase(table.name))
-    const fileName = this.toSnakeCase(table.name)
-    const pkField = table.fields.find(f => f.pk) || table.fields[0]
-    const pkName = pkField ? this.toCamelCase(pkField.name) : 'id'
-    const pkType = this.getDartType(pkField?.type || 'integer')
-    // Genera código Dart - el linter puede mostrar errores aquí (falsos positivos)
-    // eslint-disable-next-line
-    return `import 'package:flutter_test/flutter_test.dart';
-import 'package:${this.appName}/domain/entities/${fileName}.dart';
-import 'package:${this.appName}/data/repositories/${fileName}_repository.dart';
-import 'package:${this.appName}/data/services/${fileName}_service.dart';
-import 'package:${this.appName}/core/errors/app_exception.dart';
-
-// Nota: Estos tests requieren mocks del servicio
-// Ejecuta: flutter pub run build_runner build
-
-void main() {
-  group('${className}Repository', () {
-    late ${className}Service mockService;
-    late ${className}Repository repository;
-
-    setUp(() {
-      // TODO: Crear mock del servicio usando mockito
-      // mockService = Mock${className}Service();
-      // repository = ${className}Repository(mockService);
-    });
-
-    test('getAll should return list from service', () async {
-      // Arrange
-      // final expectedItems = [/* items de prueba */];
-      // when(mockService.getAll()).thenAnswer((_) async => expectedItems);
-
-      // Act
-      // final result = await repository.getAll();
-
-      // Assert
-      // expect(result, equals(expectedItems));
-      // verify(mockService.getAll()).called(1);
-    });
-
-    test('getAll should propagate errors', () async {
-      // Arrange
-      // when(mockService.getAll()).thenThrow(NetworkException('No hay conexión'));
-
-      // Act & Assert
-      // expect(() => repository.getAll(), throwsA(isA<NetworkException>()));
-    });
-
-    test('getById should return item from service', () async {
-      // Arrange
-      final itemId = 1;
-      // final expectedItem = ${className}(/* datos de prueba */);
-      // when(mockService.getById(itemId)).thenAnswer((_) async => expectedItem);
-
-      // Act
-      // final result = await repository.getById(itemId);
-
-      // Assert
-      // expect(result, equals(expectedItem));
-      // verify(mockService.getById(itemId)).called(1);
-    });
-
-    test('create should return created item from service', () async {
-      // Arrange
-      // final newItem = ${className}(/* datos de prueba */);
-      // final createdItem = newItem.copyWith(${pkName}: 1);
-      // when(mockService.create(newItem)).thenAnswer((_) async => createdItem);
-
-      // Act
-      // final result = await repository.create(newItem);
-
-      // Assert
-      // expect(result, equals(createdItem));
-      // verify(mockService.create(newItem)).called(1);
-    });
-
-    test('update should return updated item from service', () async {
-      // Arrange
-      final itemId = 1;
-      // final updatedItem = ${className}(/* datos actualizados */);
-      // when(mockService.update(itemId, any)).thenAnswer((_) async => updatedItem);
-
-      // Act
-      // final result = await repository.update(itemId, updatedItem);
-
-      // Assert
-      // expect(result, equals(updatedItem));
-      // verify(mockService.update(itemId, any)).called(1);
-    });
-
-    test('delete should call service delete', () async {
-      // Arrange
-      final itemId = 1;
-      // when(mockService.delete(itemId)).thenAnswer((_) async => null);
-
-      // Act
-      // await repository.delete(itemId);
-
-      // Assert
-      // verify(mockService.delete(itemId)).called(1);
-    });
-  });
-}
-`
   }
 
   generateSearchFilterCode(table) {

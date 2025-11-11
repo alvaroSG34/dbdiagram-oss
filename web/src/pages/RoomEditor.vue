@@ -734,9 +734,9 @@ export default {
 
         $q.notify({
           type: 'positive',
-          message: 'Proyecto Flutter generado exitosamente. Incluye: manejo de errores mejorado, logging, tests unitarios y loading states granulares. Recuerda exportar y ejecutar el backend Spring Boot primero.',
+          message: 'Proyecto Flutter generado y descargado exitosamente. Recuerda exportar y ejecutar el backend Spring Boot primero.',
           position: 'top-right',
-          timeout: 6000
+          timeout: 5000
         })
         
       } catch (error) {

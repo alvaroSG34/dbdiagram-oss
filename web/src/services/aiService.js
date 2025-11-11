@@ -7,10 +7,10 @@
 const AI_PROVIDERS = {
   gemini: {
     name: 'Google Gemini',
-    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent',
-    model: 'gemini-2.0-flash-exp',
+    endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+    model: 'gemini-2.5-flash',
     free: true,
-    rateLimit: '15/min'
+    rateLimit: '1K/min'
   },
   openai: {
     name: 'OpenAI GPT-4o',
