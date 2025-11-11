@@ -1087,33 +1087,48 @@ ${tableCards}
     Color color,
   ) {
     return Card(
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            colors: [
+              color.withOpacity(0.1),
+              color.withOpacity(0.05),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Icon(icon, color: color, size: 32),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              ],
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 28),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: color,
+                letterSpacing: -0.5,
+              ),
+            ),
+            const SizedBox(height: 4),
             Text(
               title,
-              style: const TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey.shade600,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -1224,28 +1239,105 @@ class _${className}ListScreenState extends State<${className}ListScreen> {
             onRefresh: () => provider.loadAll(),
             child: ListView.builder(
               itemCount: provider.items.length,
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               itemBuilder: (context, index) {
                 final item = provider.items[index];
                 return Card(
-                  margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  child: ListTile(
-                    title: Text(item.${displayFieldName}?.toString() ?? 'Sin nombre'),
-                    subtitle: Text('ID: \${item.${pkFieldName}}'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit),
-                          onPressed: () => _navigateToEdit(item),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => _confirmDelete(provider, item),
-                        ),
-                      ],
-                    ),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: InkWell(
                     onTap: () => _navigateToDetail(item),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        children: [
+                          // Avatar/Icon circular
+                          Container(
+                            width: 56,
+                            height: 56,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Theme.of(context).colorScheme.primary,
+                                  Theme.of(context).colorScheme.primary.withOpacity(0.7),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // Contenido
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.${displayFieldName}?.toString() ?? 'Sin nombre',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.tag,
+                                      size: 14,
+                                      color: Colors.grey.shade600,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'ID: \${item.${pkFieldName}}',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        color: Colors.grey.shade600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Botones de acción
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(
+                                  Icons.edit_outlined,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                onPressed: () => _navigateToEdit(item),
+                                tooltip: 'Editar',
+                                style: IconButton.styleFrom(
+                                  backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                                  padding: const EdgeInsets.all(8),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                onPressed: () => _confirmDelete(provider, item),
+                                tooltip: 'Eliminar',
+                                style: IconButton.styleFrom(
+                                  backgroundColor: Colors.red.withOpacity(0.1),
+                                  padding: const EdgeInsets.all(8),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 );
               },
@@ -1253,10 +1345,11 @@ class _${className}ListScreenState extends State<${className}ListScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         heroTag: 'fab_${fileName}',
         onPressed: () => _navigateToForm(),
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Agregar', style: TextStyle(fontWeight: FontWeight.w600)),
       ),
     );
   }
@@ -1433,16 +1526,93 @@ class _${className}FormScreenState extends State<${className}FormScreen> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           children: [
-${formFields}
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _isSaving ? null : _save,
-              child: _isSaving
-                  ? const CircularProgressIndicator()
-                  : Text(isEditing ? 'Actualizar' : 'Guardar'),
+            // Header decorativo
+            Container(
+              padding: const EdgeInsets.all(20),
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                    Theme.of(context).colorScheme.primary.withOpacity(0.05),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isEditing ? Icons.edit_rounded : Icons.add_circle_rounded,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 32,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isEditing ? 'Editar ${displayName}' : 'Nuevo ${displayName}',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          isEditing ? 'Modifica los datos del registro' : 'Completa los campos requeridos',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
+${formFields}
+            const SizedBox(height: 32),
+            // Botón de guardar mejorado
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton.icon(
+                onPressed: _isSaving ? null : _save,
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Icon(isEditing ? Icons.check_circle_rounded : Icons.save_rounded),
+                label: Text(
+                  _isSaving
+                      ? 'Guardando...'
+                      : (isEditing ? 'Actualizar' : 'Guardar'),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
@@ -1811,6 +1981,7 @@ class CustomSwitch extends StatelessWidget {
 
   generateEntityCard() {
     return `import 'package:flutter/material.dart';
+import '../../../core/theme/app_colors.dart';
 
 class EntityCard extends StatelessWidget {
   final String title;
@@ -1829,26 +2000,65 @@ class EntityCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      elevation: 2,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(20),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 48, color: Theme.of(context).primaryColor),
-              const SizedBox(height: 8),
+              // Icono con gradiente de fondo
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      AppColors.primary,
+                      AppColors.primaryDark,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  icon,
+                  size: 32,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleMedium,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.2,
+                ),
                 textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 6),
               Text(
                 subtitle,
-                style: Theme.of(context).textTheme.bodySmall,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
+                  fontWeight: FontWeight.w500,
+                ),
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -1957,32 +2167,58 @@ class EmptyStateWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.inbox_outlined,
-            size: 64,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            message,
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.inbox_outlined,
+                size: 64,
+                color: Colors.grey.shade400,
+              ),
             ),
-            textAlign: TextAlign.center,
-          ),
-          if (onAction != null) ...[
             const SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: onAction,
-              icon: const Icon(Icons.add),
-              label: Text(actionLabel ?? 'Agregar'),
+            Text(
+              message,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade700,
+              ),
+              textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 8),
+            Text(
+              'No hay elementos para mostrar',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade500,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (onAction != null) ...[
+              const SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: onAction,
+                icon: const Icon(Icons.add_rounded),
+                label: Text(
+                  actionLabel ?? 'Agregar',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -1996,56 +2232,200 @@ import 'app_colors.dart';
 
 class AppTheme {
   static ThemeData get lightTheme {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: AppColors.primary,
+      brightness: Brightness.light,
+      primary: AppColors.primary,
+      secondary: AppColors.secondary,
+      error: AppColors.error,
+      surface: AppColors.surface,
+    );
+
     return ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.primary,
-        brightness: Brightness.light,
-      ),
-      appBarTheme: const AppBarTheme(
+      colorScheme: colorScheme,
+      
+      // AppBar moderno con gradiente
+      appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
+        scrolledUnderElevation: 1,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.black.withOpacity(0.1),
+        titleTextStyle: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+          letterSpacing: 0.5,
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
+      
+      // Cards elegantes con sombras suaves
       cardTheme: CardTheme(
-        elevation: 2,
+        elevation: 0,
+        shadowColor: Colors.black.withOpacity(0.08),
         shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        color: AppColors.surface,
+        surfaceTintColor: Colors.transparent,
+        margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+      ),
+      
+      // Input fields modernos
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.surfaceVariant,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300, width: 1.5),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade300, width: 1.5),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primary, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.error, width: 2),
+        ),
+        labelStyle: TextStyle(
+          color: AppColors.onSurfaceVariant,
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+        ),
+        hintStyle: TextStyle(
+          color: Colors.grey.shade400,
+          fontSize: 14,
         ),
       ),
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+      
+      // Botones elevados modernos
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          textStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.5,
+          ),
         ),
-        filled: true,
-        fillColor: Colors.grey[50],
+      ),
+      
+      // FAB moderno
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 4,
+        highlightElevation: 8,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+      ),
+      
+      // Scaffold background
+      scaffoldBackgroundColor: AppColors.background,
+      
+      // Text theme mejorado
+      textTheme: TextTheme(
+        headlineLarge: TextStyle(
+          fontSize: 32,
+          fontWeight: FontWeight.bold,
+          color: AppColors.onSurface,
+          letterSpacing: -0.5,
+        ),
+        titleLarge: TextStyle(
+          fontSize: 22,
+          fontWeight: FontWeight.w600,
+          color: AppColors.onSurface,
+        ),
+        bodyLarge: TextStyle(
+          fontSize: 16,
+          color: AppColors.onSurface,
+        ),
+        bodyMedium: TextStyle(
+          fontSize: 14,
+          color: AppColors.onSurfaceVariant,
+        ),
       ),
     );
   }
 
   static ThemeData get darkTheme {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: AppColors.primary,
+      brightness: Brightness.dark,
+      primary: AppColors.primaryLight,
+      secondary: AppColors.secondary,
+      error: AppColors.error,
+      surface: const Color(0xFF1E293B),
+    );
+
     return ThemeData(
       useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.primary,
-        brightness: Brightness.dark,
-      ),
-      appBarTheme: const AppBarTheme(
+      colorScheme: colorScheme,
+      
+      appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
+        scrolledUnderElevation: 1,
+        backgroundColor: const Color(0xFF1E293B),
+        foregroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        titleTextStyle: const TextStyle(
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+          letterSpacing: 0.5,
+        ),
       ),
+      
       cardTheme: CardTheme(
-        elevation: 2,
+        elevation: 0,
+        shadowColor: Colors.black.withOpacity(0.3),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
         ),
+        color: const Color(0xFF1E293B),
+        surfaceTintColor: Colors.transparent,
       ),
+      
       inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
         filled: true,
-        fillColor: Colors.grey[900],
+        fillColor: const Color(0xFF0F172A),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade700, width: 1.5),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade700, width: 1.5),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: AppColors.primaryLight, width: 2),
+        ),
       ),
+      
+      scaffoldBackgroundColor: const Color(0xFF0F172A),
     );
   }
 }
@@ -2056,12 +2436,40 @@ class AppTheme {
     return `import 'package:flutter/material.dart';
 
 class AppColors {
-  static const Color primary = Color(0xFF2196F3);
-  static const Color secondary = Color(0xFF03A9F4);
-  static const Color accent = Color(0xFF00BCD4);
-  static const Color error = Color(0xFFF44336);
-  static const Color success = Color(0xFF4CAF50);
-  static const Color warning = Color(0xFFFF9800);
+  // Colores principales modernos
+  static const Color primary = Color(0xFF6366F1); // Indigo vibrante
+  static const Color primaryDark = Color(0xFF4F46E5);
+  static const Color primaryLight = Color(0xFF818CF8);
+  
+  // Colores secundarios
+  static const Color secondary = Color(0xFF8B5CF6); // Purple
+  static const Color accent = Color(0xFF06B6D4); // Cyan
+  
+  // Colores de estado
+  static const Color error = Color(0xFFEF4444); // Rojo moderno
+  static const Color success = Color(0xFF10B981); // Verde esmeralda
+  static const Color warning = Color(0xFFF59E0B); // Amber
+  static const Color info = Color(0xFF3B82F6); // Blue
+  
+  // Colores neutros
+  static const Color background = Color(0xFFF8FAFC);
+  static const Color surface = Color(0xFFFFFFFF);
+  static const Color surfaceVariant = Color(0xFFF1F5F9);
+  static const Color onSurface = Color(0xFF1E293B);
+  static const Color onSurfaceVariant = Color(0xFF64748B);
+  
+  // Gradientes
+  static const LinearGradient primaryGradient = LinearGradient(
+    colors: [primary, primaryDark],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
+  
+  static const LinearGradient secondaryGradient = LinearGradient(
+    colors: [secondary, primary],
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+  );
 }
 `
   }
